@@ -1,0 +1,32 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    env_file:
+      - ./.env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+  postgres:
+    image: postgres:18.4-bookworm
+    environment:
+      POSTGRES_DB: cloudcost
+      POSTGRES_USER: cloudcost
+      POSTGRES_PASSWORD: cloudcost
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
