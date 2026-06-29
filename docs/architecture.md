@@ -1,10 +1,10 @@
 # Architecture Overview
 
-Stage 0 architecture is intentionally minimal:
+Current architecture:
 
-- `frontend/` runs a Vite + React development server.
-- `backend/` runs a FastAPI app with a `/health` endpoint.
-- `postgres` is provisioned in Docker Compose for upcoming persistence work.
+- `frontend/` runs a Vite + React application with route-based auth screens.
+- `backend/` runs a FastAPI app with health, auth, refresh, and role-check endpoints.
+- `postgres` stores user accounts and will hold sync, findings, and reporting data in later stages.
 
 Planned direction:
 

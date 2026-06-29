@@ -19,18 +19,21 @@ resources.
 
 ## 2. Current Status
 
-- Current stage: Stage 0 - Project Setup & Foundations, in progress
-- Last completed milestone: 2026-06-27 - Repository scaffolded and initial Stage 0 files created
+- Current stage: Stage 1 - Authentication & Role-Based Access Control, in progress
+- Last completed milestone: 2026-06-27 - Stage 0 foundation scaffold committed and pushed
 - Known broken / in-progress things right now:
-  - Docker images have not been manually built or verified yet in this session.
-  - No `.env` file has been created yet; only `.env.example` exists.
+  - Stage 1 has been implemented in code but not fully manually verified yet.
+  - AWS sandbox setup is happening in parallel and is still needed before Stage 2.
+  - Session persistence is intentionally memory-only, so refreshing the frontend signs the user out.
 
 ## 3. Architecture Summary
 
-The repository currently contains a FastAPI backend, a Vite + React frontend,
-and a PostgreSQL service defined in Docker Compose. At Stage 0, the backend
-exposes only `/health` and the frontend fetches that endpoint through the Vite
-development proxy. See `docs/architecture.md` for the high-level structure.
+The repository now contains a FastAPI backend, a Vite + React frontend, and a
+PostgreSQL service defined in Docker Compose. The backend exposes `/health`,
+registration, login, refresh, current-user, and admin-only test endpoints. The
+frontend uses React Router with an auth provider, a protected route wrapper,
+and an API client that retries once on `401` by calling `/auth/refresh`. See
+`docs/architecture.md` for the high-level structure.
 
 ## 4. Key Decisions & Why (running ADR log)
 
@@ -53,6 +56,29 @@ work consistent with the project prompt.
 The prompt explicitly warns against guessing library versions. Stage 0 pins the
 versions verified during setup so the environment is repeatable and later
 sessions can see what was chosen and why.
+
+### 2026-06-29 - PyJWT and pwdlib chosen for Stage 1 auth
+
+Before implementing authentication, we checked the current FastAPI security
+docs. The official tutorial now uses `PyJWT` and `pwdlib[argon2]`. Those docs
+also note that `passlib` is better suited when you need legacy-hash
+compatibility. Because the prompt explicitly asked us to verify whether
+`passlib[bcrypt]` was still the right recommendation, we followed the current
+documented FastAPI approach instead of defaulting to an older stack.
+
+### 2026-06-29 - Access and refresh tokens are memory-only in the frontend
+
+The frontend intentionally stores tokens only in React state, not in
+`localStorage`. This means a browser refresh ends the session. We accepted that
+tradeoff because it reduces exposure to token theft via XSS and keeps the
+portfolio security story straightforward.
+
+### 2026-06-29 - Portfolio registration allows direct role selection
+
+Stage 1 allows choosing `admin` or `viewer` during registration because the
+project prompt explicitly allows that shortcut for a portfolio build. If this
+project were production-facing, admin-role assignment would be gated behind an
+existing admin or an out-of-band provisioning flow.
 
 ## 5. Environment Variables / Secrets Reference
 
@@ -96,9 +122,25 @@ No known application bugs logged yet.
 - Anything the next session needs to know:
   - Read this file first, then run the Stage 0 manual test gate before starting Stage 1.
 
+### 2026-06-29 - Stage 1 auth and RBAC implementation
+- What changed:
+  - Added SQLAlchemy user model, Alembic migration, async DB session handling, JWT helpers, auth schemas, and auth dependencies.
+  - Added `/auth/register`, `/auth/login`, `/auth/refresh`, `/auth/me`, and `/auth/admin-check`.
+  - Added slowapi-based login rate limiting.
+  - Replaced the Stage 0 landing page with login/register screens, a protected dashboard shell, and a fetch wrapper that retries once after refresh.
+- Why:
+  - Implement the Stage 1 authentication and authorization flow needed before the AWS dashboard stages.
+- Files touched:
+  - Backend auth, DB, and Alembic files; frontend routing/auth files; docs and project memory.
+- Manual test performed:
+  - Not yet in this session. Stage 1 manual gate is still pending.
+- Anything the next session needs to know:
+  - Tokens are memory-only by design, so refresh should log the user out unless that behavior is intentionally changed later.
+
 ## 8. Manual Test Checklist Status
 
-- Stage 0: pending as of 2026-06-27
+- Stage 0: base Docker/frontend flow confirmed during local setup; AWS setup still being completed separately for Stage 2 readiness
+- Stage 1: pending as of 2026-06-29
 
 ## 9. AWS Account / Sandbox Notes
 

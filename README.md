@@ -5,7 +5,7 @@ spend, surfacing waste, and presenting safe human-reviewed cost-saving
 recommendations. This repository is being built in stages, with a manual test
 gate at the end of each stage.
 
-## Stage 0 Stack
+## Current Stack
 
 - FastAPI for the backend API
 - React + Vite for the frontend
@@ -27,6 +27,14 @@ docker-compose up --build
 
 ## Current Scope
 
-This initial stage only includes the project skeleton, a backend `/health`
-endpoint, and a frontend page that displays the health result. AWS ingestion,
-authentication, dashboarding, and recommendations will be added in later stages.
+The project currently includes:
+
+- Stage 0 foundation with Docker, FastAPI, React, and PostgreSQL
+- Stage 1 authentication with registration, login, refresh, `/auth/me`, and role checks
+- A protected dashboard shell that confirms session and admin-route behavior
+
+Current session behavior:
+
+- Access and refresh tokens are kept in memory only
+- Refreshing the browser intentionally signs the user out
+- This avoids storing tokens in `localStorage`, reducing XSS exposure for this portfolio build
