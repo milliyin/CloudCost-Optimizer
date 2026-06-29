@@ -2,6 +2,7 @@
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 
 revision = "20260629_0001"
@@ -10,11 +11,11 @@ branch_labels = None
 depends_on = None
 
 
-user_role = sa.Enum("admin", "viewer", name="userrole")
+user_role = postgresql.ENUM("admin", "viewer", name="userrole", create_type=False)
 
 
 def upgrade() -> None:
-    user_role.create(op.get_bind(), checkfirst=True)
+    postgresql.ENUM("admin", "viewer", name="userrole").create(op.get_bind(), checkfirst=True)
     op.create_table(
         "users",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -32,4 +33,4 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_users_id"), table_name="users")
     op.drop_index(op.f("ix_users_email"), table_name="users")
     op.drop_table("users")
-    user_role.drop(op.get_bind(), checkfirst=True)
+    postgresql.ENUM("admin", "viewer", name="userrole").drop(op.get_bind(), checkfirst=True)

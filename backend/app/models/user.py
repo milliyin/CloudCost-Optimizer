@@ -20,5 +20,11 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255))
-    role: Mapped[UserRole] = mapped_column(Enum(UserRole, name="userrole"))
+    role: Mapped[UserRole] = mapped_column(
+        Enum(
+            UserRole,
+            name="userrole",
+            values_callable=lambda enum_class: [member.value for member in enum_class],
+        )
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

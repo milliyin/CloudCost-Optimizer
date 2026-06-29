@@ -19,12 +19,12 @@ resources.
 
 ## 2. Current Status
 
-- Current stage: Stage 1 - Authentication & Role-Based Access Control, in progress
-- Last completed milestone: 2026-06-27 - Stage 0 foundation scaffold committed and pushed
+- Current stage: Stage 1 - Authentication & Role-Based Access Control, completed
+- Last completed milestone: 2026-06-29 - Stage 1 auth, RBAC, and manual verification completed
 - Known broken / in-progress things right now:
-  - Stage 1 has been implemented in code but not fully manually verified yet.
   - AWS sandbox setup is happening in parallel and is still needed before Stage 2.
   - Session persistence is intentionally memory-only, so refreshing the frontend signs the user out.
+  - No known blocking application issues at the end of Stage 1.
 
 ## 3. Architecture Summary
 
@@ -104,7 +104,42 @@ existing admin or an out-of-band provisioning flow.
 
 ## 6. Known Issues & Fixes Log (bug journal)
 
-No known application bugs logged yet.
+### 2026-06-29 - Postgres 18 container failed to start after Stage 1 changes
+
+- Symptom:
+  - `postgres` exited during `docker compose up --build` with the Postgres 18 data-directory layout warning about `/var/lib/postgresql/data`.
+- Root cause:
+  - The compose file was still mounting the pre-18 path `/var/lib/postgresql/data`, but the current `postgres:18.4-bookworm` image expects the parent directory mount layout under `/var/lib/postgresql`.
+- Fix:
+  - Changed the compose volume mount to `postgres_data:/var/lib/postgresql`.
+  - Local recovery requires recreating the Docker volume with `docker compose down -v` before starting again.
+- How to verify it's still fixed:
+  - Run `docker compose down -v` once, then `docker compose up --build`.
+  - Confirm `postgres` remains healthy instead of exiting with the 18+ layout warning.
+
+### 2026-06-29 - Alembic startup migration failed because enum type already existed
+
+- Symptom:
+  - Backend startup failed during `alembic upgrade head` with `psycopg.errors.DuplicateObject: type "userrole" already exists`.
+- Root cause:
+  - The migration created the `userrole` enum explicitly and the table creation path also attempted to create it again through the SQLAlchemy enum column definition.
+- Fix:
+  - Updated the Alembic migration to create the enum once with an explicit PostgreSQL enum definition and use `create_type=False` on the table column enum binding.
+- How to verify it's still fixed:
+  - Re-run `docker compose up --build` after the migration change.
+  - Confirm Alembic completes `upgrade -> 20260629_0001` without the duplicate enum error and the backend stays up.
+
+### 2026-06-29 - User registration failed because enum values were written in the wrong case
+
+- Symptom:
+  - `POST /auth/register` returned `500`, and Postgres logged `invalid input value for enum userrole: "ADMIN"`.
+- Root cause:
+  - SQLAlchemy's enum mapping was persisting the Python enum member names (`ADMIN`, `VIEWER`) instead of the intended string values (`admin`, `viewer`) expected by the PostgreSQL enum type.
+- Fix:
+  - Updated the `User.role` column enum mapping to use `values_callable` so SQLAlchemy persists the enum `.value` strings.
+- How to verify it's still fixed:
+  - Rebuild or restart the backend after the code change.
+  - Register both an `admin` and `viewer` user and confirm each request returns `201` instead of `500`.
 
 ## 7. Change Log (one entry per commit)
 
@@ -128,19 +163,28 @@ No known application bugs logged yet.
   - Added `/auth/register`, `/auth/login`, `/auth/refresh`, `/auth/me`, and `/auth/admin-check`.
   - Added slowapi-based login rate limiting.
   - Replaced the Stage 0 landing page with login/register screens, a protected dashboard shell, and a fetch wrapper that retries once after refresh.
+  - Fixed Postgres 18 volume mount compatibility, Alembic enum creation, and enum value serialization bugs found during manual testing.
 - Why:
   - Implement the Stage 1 authentication and authorization flow needed before the AWS dashboard stages.
 - Files touched:
   - Backend auth, DB, and Alembic files; frontend routing/auth files; docs and project memory.
 - Manual test performed:
-  - Not yet in this session. Stage 1 manual gate is still pending.
+  - Registered admin and viewer users successfully.
+  - Logged in successfully and verified `/auth/me`.
+  - Confirmed admin user received `200` from `/auth/admin-check`.
+  - Confirmed viewer user was blocked from admin-only route with `403` / "Insufficient role".
+  - Confirmed browser refresh signs the user out as documented.
+  - Confirmed repeated failed logins trigger `429 Too Many Requests`.
 - Anything the next session needs to know:
   - Tokens are memory-only by design, so refresh should log the user out unless that behavior is intentionally changed later.
+  - If Postgres fails with an 18+ volume-layout warning, recreate the Docker volume after checking Section 6.
+  - If Alembic fails with `type "userrole" already exists`, verify the enum creation fix in Section 6 is present.
+  - If registration fails with uppercase enum values, verify the `values_callable` enum mapping fix in Section 6 is present.
 
 ## 8. Manual Test Checklist Status
 
 - Stage 0: base Docker/frontend flow confirmed during local setup; AWS setup still being completed separately for Stage 2 readiness
-- Stage 1: pending as of 2026-06-29
+- Stage 1: passed on 2026-06-29
 
 ## 9. AWS Account / Sandbox Notes
 
