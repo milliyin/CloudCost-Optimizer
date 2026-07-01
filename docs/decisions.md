@@ -57,3 +57,10 @@ out on refresh. Because the product direction now prioritizes real client
 usability, sessions are persisted in browser storage so users stay logged in.
 This is a conscious tradeoff and should be revisited with hardened production
 session handling later.
+
+## 2026-07-01 - Resume Stage 3 only after tenant boundaries existed
+
+The dashboard work was intentionally paused until organizations, tenant-scoped
+sync tables, and org-specific AWS connections were in place. That prevents us
+from building nice charts on top of the wrong data-isolation model and then
+having to unwind the dashboard later.

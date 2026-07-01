@@ -19,25 +19,25 @@ resources.
 
 ## 2. Current Status
 
-- Current stage: Stage 2/Architecture Pivot - Multi-tenant foundation in progress
+- Current stage: Stage 3 - Interactive Dashboard, in progress
 - Last completed milestone: 2026-06-29 - Stage 1 auth, RBAC, and manual verification completed
 - Known broken / in-progress things right now:
-  - Session persistence is no longer memory-only; the app is being updated to keep users signed in across refreshes.
   - Stage 2 sync code has been partially verified with a real admin-triggered sync.
   - Cost Explorer was only recently enabled in the sandbox account, so cost data may still be unavailable for up to about 24 hours.
-  - A multitenant migration is in progress so organizations can own separate AWS connections and isolated synced datasets.
-  - Same-organization teammate onboarding is being added so admins can create viewer/admin users inside an existing client workspace.
+  - Stage 3 dashboard queries and UI have been implemented but not manually verified yet after the multitenant pivot.
+  - Cost charts may legitimately be empty until Cost Explorer data becomes available for the organization's AWS account.
 
 ## 3. Architecture Summary
 
 The repository now contains a FastAPI backend, a Vite + React frontend, and a
 PostgreSQL service defined in Docker Compose. The backend exposes `/health`,
-auth endpoints, organization endpoints, admin-only test endpoints, and a manual
-`POST /sync/run` endpoint. The data model now includes organizations and
-organization-specific AWS connections so synced AWS data can be scoped to a
-client workspace instead of one shared global dataset. APScheduler remains
-wired into FastAPI lifespan for background sync execution. See
-`docs/architecture.md` for the high-level structure.
+auth endpoints, organization endpoints, dashboard endpoints, admin-only test
+endpoints, and a manual `POST /sync/run` endpoint. The data model includes
+organizations and organization-specific AWS connections so synced AWS data is
+scoped to a client workspace instead of one shared global dataset. The frontend
+now includes an actual dashboard layer with summary cards, cost charts, trend
+chart, resource table, and retained admin tools. See `docs/architecture.md` for
+the high-level structure.
 
 ## 4. Key Decisions & Why (running ADR log)
 
@@ -122,6 +122,13 @@ longer made sense for a second user in the same client account to use that same
 flow. We therefore added an admin-only teammate creation path inside the
 organization dashboard instead of reopening public signup against existing org
 names.
+
+### 2026-07-01 - Resume dashboard work only after multitenant foundations landed
+
+Once organizations and org-owned AWS connections existed, we resumed Stage 3
+dashboard work against org-scoped endpoints instead of the old global sync
+assumption. That keeps every chart, summary card, and resource table aligned
+with the actual product direction.
 
 ### 2026-07-01 - Admins need in-app sync controls, not only curl commands
 
@@ -370,6 +377,21 @@ the UI.
   - Confirmed the UI showed `resources: 2`, `metric samples: 3`, and the expected Cost Explorer warm-up warning.
 - Anything the next session needs to know:
   - The next multitenant verification step is to repeat the same flow in `org2` and confirm the success message names `org2`.
+
+### 2026-07-01 - Stage 3 dashboard foundation on multitenant data
+- What changed:
+  - Added org-scoped backend dashboard endpoints for summary, by-service, by-region, trend, and resources.
+  - Added a real dashboard UI with spend summary, pie charts, trend chart, date filters, resource table, loading states, and empty states.
+  - Kept organization admin tools for AWS connection management, manual sync, and teammate creation inside the dashboard layout.
+- Why:
+  - Resume Stage 3 with a dashboard that reflects the correct multitenant data model instead of the earlier shared-data shell.
+- Files touched:
+  - Dashboard API/service/schema files, frontend dashboard page and styling, package dependencies, and project memory/docs.
+- Manual test performed:
+  - Backend compile pass only so far; manual dashboard verification is still pending.
+- Anything the next session needs to know:
+  - Rebuild the frontend to install `recharts`.
+  - Empty cost charts are expected until Cost Explorer data exists for that organization.
 
 ## 8. Manual Test Checklist Status
 

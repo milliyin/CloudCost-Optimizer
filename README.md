@@ -33,7 +33,7 @@ The project currently includes:
 - Stage 1 authentication with registration, login, refresh, `/auth/me`, and role checks
 - Stage 2 ingestion foundations with AWS client factories, sync orchestration, scheduler wiring, and an admin-only `/sync/run` endpoint
 - Multi-tenant foundations with organization-owned users, organization-specific AWS connections, and tenant-scoped synced data
-- A protected dashboard shell that confirms session and admin-route behavior
+- Stage 3 dashboard foundations with spend summary, cost charts, trend view, and resource inventory table
 
 Current session behavior:
 
