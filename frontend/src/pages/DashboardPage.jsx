@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { apiFetch } from "../api/client";
+import { extractApiError } from "../api/errors";
 import { useAuth } from "../components/AuthProvider";
 
 export default function DashboardPage() {
@@ -39,6 +40,12 @@ export default function DashboardPage() {
     saving: false,
     message: "",
     error: "",
+  });
+  const [syncState, setSyncState] = useState({
+    running: false,
+    message: "",
+    error: "",
+    summary: null,
   });
 
   useEffect(() => {
@@ -125,7 +132,7 @@ export default function DashboardPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.detail ?? "Failed to save AWS connection");
+        throw new Error(extractApiError(data, "Failed to save AWS connection"));
       }
 
       setOrganizationContext({
@@ -168,7 +175,7 @@ export default function DashboardPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.detail ?? "Failed to create teammate");
+        throw new Error(extractApiError(data, "Failed to create teammate"));
       }
 
       setTeammateState({
@@ -186,6 +193,40 @@ export default function DashboardPage() {
         saving: false,
         message: "",
         error: error instanceof Error ? error.message : "Failed to create teammate",
+      });
+    }
+  }
+
+  async function handleManualSync() {
+    setSyncState({
+      running: true,
+      message: "",
+      error: "",
+      summary: null,
+    });
+
+    try {
+      const response = await apiFetch("/sync/run", {
+        method: "POST",
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(extractApiError(data, "Failed to run sync"));
+      }
+
+      setSyncState({
+        running: false,
+        message: data.message ?? "Sync completed.",
+        error: "",
+        summary: data.summary ?? null,
+      });
+    } catch (error) {
+      setSyncState({
+        running: false,
+        message: "",
+        error: error instanceof Error ? error.message : "Failed to run sync",
+        summary: null,
       });
     }
   }
@@ -309,6 +350,44 @@ export default function DashboardPage() {
                 {connectionState.saving ? "Saving..." : "Save AWS connection"}
               </button>
             </form>
+          </article>
+        ) : null}
+
+        {auth.user?.role === "admin" ? (
+          <article className="info-card">
+            <h2>Manual sync</h2>
+            <p className="inline-note">
+              Run an organization-scoped AWS sync directly from the dashboard.
+            </p>
+            <button className="primary-button" type="button" onClick={handleManualSync} disabled={syncState.running}>
+              {syncState.running ? "Running sync..." : "Run sync now"}
+            </button>
+            {syncState.error ? <p className="form-error">{syncState.error}</p> : null}
+            {syncState.message ? <p className="form-success">{syncState.message}</p> : null}
+            {syncState.summary ? (
+              <dl className="facts-list sync-summary">
+                <div>
+                  <dt>Cost records</dt>
+                  <dd>{syncState.summary.cost_records_synced}</dd>
+                </div>
+                <div>
+                  <dt>Resources</dt>
+                  <dd>{syncState.summary.resources_synced}</dd>
+                </div>
+                <div>
+                  <dt>Metric samples</dt>
+                  <dd>{syncState.summary.metric_samples_synced}</dd>
+                </div>
+                <div>
+                  <dt>Warnings</dt>
+                  <dd>
+                    {Array.isArray(syncState.summary.warnings) && syncState.summary.warnings.length > 0
+                      ? syncState.summary.warnings.join(" | ")
+                      : "none"}
+                  </dd>
+                </div>
+              </dl>
+            ) : null}
           </article>
         ) : null}
 

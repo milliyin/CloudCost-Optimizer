@@ -123,6 +123,14 @@ flow. We therefore added an admin-only teammate creation path inside the
 organization dashboard instead of reopening public signup against existing org
 names.
 
+### 2026-07-01 - Admins need in-app sync controls, not only curl commands
+
+Once organizations started saving AWS connections through the dashboard, it no
+longer made sense to force admins back to the terminal just to trigger a sync.
+We therefore added a dashboard card with a manual sync button and inline sync
+summary so org admins can run and inspect their own workspace syncs directly in
+the UI.
+
 ## 5. Environment Variables / Secrets Reference
 
 - `DATABASE_URL`
@@ -348,6 +356,20 @@ names.
   - Not yet in this session; manual verification is pending.
 - Anything the next session needs to know:
   - The correct flow is now: public registration creates a new org, then admins create additional teammates inside that org.
+
+### 2026-07-01 - Dashboard manual sync controls
+- What changed:
+  - Added an admin-only `Run sync now` button to the dashboard.
+  - Added inline sync feedback showing message, counts, and warnings directly in the UI.
+- Why:
+  - Organization admins should be able to test and operate their own sync flow without dropping to `curl`.
+- Files touched:
+  - Dashboard UI, styling, and project memory.
+- Manual test performed:
+  - Confirmed the dashboard button ran sync successfully for `org1`.
+  - Confirmed the UI showed `resources: 2`, `metric samples: 3`, and the expected Cost Explorer warm-up warning.
+- Anything the next session needs to know:
+  - The next multitenant verification step is to repeat the same flow in `org2` and confirm the success message names `org2`.
 
 ## 8. Manual Test Checklist Status
 
