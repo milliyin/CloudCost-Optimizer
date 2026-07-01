@@ -3,8 +3,9 @@
 Current architecture:
 
 - `frontend/` runs a Vite + React application with route-based auth screens.
-- `backend/` runs a FastAPI app with health, auth, refresh, and role-check endpoints.
-- `postgres` stores user accounts and will hold sync, findings, and reporting data in later stages.
+- `backend/` runs a FastAPI app with health, auth, refresh, role-check, and manual sync endpoints.
+- `postgres` stores user accounts, cost records, cloud resources, and metric samples.
+- An APScheduler background job is wired into FastAPI lifespan to trigger periodic syncs.
 
 Planned direction:
 

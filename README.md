@@ -31,6 +31,7 @@ The project currently includes:
 
 - Stage 0 foundation with Docker, FastAPI, React, and PostgreSQL
 - Stage 1 authentication with registration, login, refresh, `/auth/me`, and role checks
+- Stage 2 ingestion foundations with AWS client factories, sync orchestration, scheduler wiring, and an admin-only `/sync/run` endpoint
 - A protected dashboard shell that confirms session and admin-route behavior
 
 Current session behavior:
@@ -38,3 +39,8 @@ Current session behavior:
 - Access and refresh tokens are kept in memory only
 - Refreshing the browser intentionally signs the user out
 - This avoids storing tokens in `localStorage`, reducing XSS exposure for this portfolio build
+
+AWS sync notes:
+
+- Cost Explorer can take about 24 hours after first enablement to begin returning data
+- The sync layer is designed to keep resource inventory and CloudWatch ingestion working even when Cost Explorer data is still unavailable

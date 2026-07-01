@@ -11,6 +11,13 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 7
     allowed_origin: str = "http://localhost:5173"
     login_rate_limit: str = "5/minute"
+    aws_access_key_id: str = "replace-with-your-aws-access-key-id"
+    aws_secret_access_key: str = "replace-with-your-aws-secret-access-key"
+    aws_region: str = "us-east-1"
+    aws_sync_interval_hours: int = 6
+    aws_cost_lookback_days: int = 30
+    aws_metric_lookback_hours: int = 24
+    aws_metric_period_seconds: int = 3600
 
     model_config = SettingsConfigDict(
         env_file=".env",

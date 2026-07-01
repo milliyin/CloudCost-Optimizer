@@ -27,3 +27,18 @@ Stage 1 keeps both access and refresh tokens in React state rather than
 persisting bearer tokens in a storage area that is more exposed to XSS-driven
 token theft. For a portfolio project, the tradeoff is simple and easy to
 explain.
+
+## 2026-07-01 - Build Stage 2 around partial AWS readiness
+
+AWS Cost Explorer was enabled only recently in the sandbox account, and AWS
+documents that fresh Cost Explorer data can take about 24 hours to appear. We
+therefore designed the sync flow to degrade gracefully: Cost Explorer
+availability problems become human-readable warnings, while resource inventory
+and CloudWatch metric collection can still succeed.
+
+## 2026-07-01 - Upsert natural keys for sync idempotency
+
+Stage 2 stores synced AWS data with database-level uniqueness constraints and
+PostgreSQL upserts. That allows repeated manual sync runs without creating
+duplicate cost, resource, or metric rows, which is important for demoing the
+system safely and repeatedly.

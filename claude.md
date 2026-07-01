@@ -19,21 +19,23 @@ resources.
 
 ## 2. Current Status
 
-- Current stage: Stage 1 - Authentication & Role-Based Access Control, completed
+- Current stage: Stage 2 - AWS Data Ingestion Layer, in progress
 - Last completed milestone: 2026-06-29 - Stage 1 auth, RBAC, and manual verification completed
 - Known broken / in-progress things right now:
-  - AWS sandbox setup is happening in parallel and is still needed before Stage 2.
   - Session persistence is intentionally memory-only, so refreshing the frontend signs the user out.
-  - No known blocking application issues at the end of Stage 1.
+  - Stage 2 sync code is in progress and not manually verified yet.
+  - Cost Explorer was only recently enabled in the sandbox account, so cost data may still be unavailable for up to about 24 hours.
 
 ## 3. Architecture Summary
 
 The repository now contains a FastAPI backend, a Vite + React frontend, and a
 PostgreSQL service defined in Docker Compose. The backend exposes `/health`,
-registration, login, refresh, current-user, and admin-only test endpoints. The
-frontend uses React Router with an auth provider, a protected route wrapper,
-and an API client that retries once on `401` by calling `/auth/refresh`. See
-`docs/architecture.md` for the high-level structure.
+registration, login, refresh, current-user, admin-only test endpoints, and a
+manual `POST /sync/run` endpoint. Stage 2 also adds AWS client factories,
+service modules for Cost Explorer, CloudWatch, and resource inventory, plus an
+APScheduler background sync hook wired into FastAPI lifespan. The frontend is
+still the Stage 1 auth shell at this point. See `docs/architecture.md` for the
+high-level structure.
 
 ## 4. Key Decisions & Why (running ADR log)
 
@@ -80,6 +82,20 @@ project prompt explicitly allows that shortcut for a portfolio build. If this
 project were production-facing, admin-role assignment would be gated behind an
 existing admin or an out-of-band provisioning flow.
 
+### 2026-07-01 - Treat fresh Cost Explorer accounts as a first-class Stage 2 case
+
+AWS documents that Cost Explorer can take about 24 hours to start returning
+data after first enablement. Since the sandbox account is newly configured, the
+sync service is designed to degrade gracefully: Cost Explorer availability
+problems are surfaced as warnings while inventory and CloudWatch collection can
+still proceed.
+
+### 2026-07-01 - Use DB uniqueness plus PostgreSQL upserts for sync idempotency
+
+Stage 2 may run on a schedule and can also be triggered manually through the
+demo UI/API. To avoid duplicate records on repeated syncs, the ingestion tables
+use natural-key uniqueness constraints and `ON CONFLICT DO UPDATE` upserts.
+
 ## 5. Environment Variables / Secrets Reference
 
 - `DATABASE_URL`
@@ -98,6 +114,18 @@ existing admin or an out-of-band provisioning flow.
 - `AWS_REGION`
   - Purpose: default AWS region for CloudWatch and resource inventory operations
   - Where to get it: choose the sandbox region you plan to test with, such as `us-east-1`
+- `AWS_SYNC_INTERVAL_HOURS`
+  - Purpose: scheduler interval for automatic Stage 2 sync jobs
+  - Where to get it: set locally; `6` is the current default
+- `AWS_COST_LOOKBACK_DAYS`
+  - Purpose: number of days of Cost Explorer data requested per sync
+  - Where to get it: set locally; `30` is the current default
+- `AWS_METRIC_LOOKBACK_HOURS`
+  - Purpose: trailing CloudWatch window per EC2 instance sync
+  - Where to get it: set locally; `24` is the current default
+- `AWS_METRIC_PERIOD_SECONDS`
+  - Purpose: CloudWatch aggregation period for EC2 metric samples
+  - Where to get it: set locally; `3600` is the current default
 - `ENVIRONMENT`
   - Purpose: runtime environment selector for local development vs later deployment behavior
   - Where to get it: set manually, usually `development` for local work
@@ -141,6 +169,18 @@ existing admin or an out-of-band provisioning flow.
   - Rebuild or restart the backend after the code change.
   - Register both an `admin` and `viewer` user and confirm each request returns `201` instead of `500`.
 
+### 2026-07-01 - Fresh Cost Explorer accounts may return no cost data during Stage 2
+
+- Symptom:
+  - Cost Explorer requests can fail or return no usable billing data shortly after first enablement.
+- Root cause:
+  - AWS documents that new Cost Explorer setups can take about 24 hours to begin serving cost and usage data.
+- Fix:
+  - Stage 2 sync translates Cost Explorer availability failures into human-readable warnings instead of crashing the whole sync.
+- How to verify it's still fixed:
+  - Trigger `POST /sync/run` before Cost Explorer is ready.
+  - Confirm the response includes a warning about Cost Explorer availability while the rest of the sync can still proceed where possible.
+
 ## 7. Change Log (one entry per commit)
 
 ### 2026-06-27 - Stage 0 bootstrap scaffold
@@ -181,10 +221,28 @@ existing admin or an out-of-band provisioning flow.
   - If Alembic fails with `type "userrole" already exists`, verify the enum creation fix in Section 6 is present.
   - If registration fails with uppercase enum values, verify the `values_callable` enum mapping fix in Section 6 is present.
 
+### 2026-07-01 - Stage 2 ingestion foundation
+- What changed:
+  - Added boto3/botocore, tenacity, and APScheduler dependencies.
+  - Added ingestion tables for cost records, cloud resources, and metric samples with Alembic migration support.
+  - Added AWS service modules for Cost Explorer, CloudWatch, and resource inventory.
+  - Added PostgreSQL upsert-based sync orchestration plus an admin-only `POST /sync/run` endpoint.
+  - Added a background scheduler hook for periodic syncs.
+- Why:
+  - Implement the AWS ingestion layer required before the dashboard and waste-detection stages.
+- Files touched:
+  - Backend config, models, migration files, AWS services, sync services, API routes, docs, and project memory.
+- Manual test performed:
+  - Not yet in this session. Stage 2 manual gate is still pending.
+- Anything the next session needs to know:
+  - Cost Explorer may still be warming up in the sandbox account.
+  - Sync should be tested first with the admin-only `/sync/run` endpoint before relying on the scheduler.
+
 ## 8. Manual Test Checklist Status
 
 - Stage 0: base Docker/frontend flow confirmed during local setup; AWS setup still being completed separately for Stage 2 readiness
 - Stage 1: passed on 2026-06-29
+- Stage 2: in progress as of 2026-07-01
 
 ## 9. AWS Account / Sandbox Notes
 
@@ -196,3 +254,5 @@ existing admin or an out-of-band provisioning flow.
   notes that this setting does not control access to the Billing and Cost
   Management SDK APIs themselves. Keep that distinction in mind when Stage 2
   service integrations are implemented.
+- The sandbox now has Cost Explorer enabled, but it was enabled recently enough
+  that Stage 2 should expect transient "data not ready yet" behavior.
