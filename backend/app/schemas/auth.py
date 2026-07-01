@@ -4,9 +4,11 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.models.user import UserRole
+from app.schemas.organization import OrganizationResponse
 
 
 class RegisterRequest(BaseModel):
+    organization_name: str = Field(min_length=2, max_length=255)
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     role: UserRole
@@ -26,8 +28,10 @@ class UserResponse(BaseModel):
 
     id: int
     email: EmailStr
+    organization_id: int
     role: UserRole
     created_at: datetime
+    organization: OrganizationResponse
 
 
 class TokenPairResponse(BaseModel):

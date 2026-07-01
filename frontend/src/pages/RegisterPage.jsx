@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 const initialForm = {
+  organization_name: "",
   email: "",
   password: "",
   role: "viewer",
@@ -50,10 +51,19 @@ export default function RegisterPage() {
       <p className="eyebrow">Role-based access</p>
       <h1>Create an account</h1>
       <p className="lede">
-        This portfolio version allows selecting a role at registration time. In
-        production, admin assignment would be restricted.
+        Registration now creates a dedicated client workspace so each
+        organization can connect its own AWS account and keep data isolated.
       </p>
       <form className="auth-form" onSubmit={handleSubmit}>
+        <label>
+          <span>Organization</span>
+          <input
+            required
+            type="text"
+            value={form.organization_name}
+            onChange={(event) => setForm((current) => ({ ...current, organization_name: event.target.value }))}
+          />
+        </label>
         <label>
           <span>Email</span>
           <input

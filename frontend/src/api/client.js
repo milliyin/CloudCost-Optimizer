@@ -82,3 +82,7 @@ export async function apiFetch(path, options = {}) {
     throw error;
   }
 }
+
+export function getAuthActions() {
+  return authActions;
+}

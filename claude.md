@@ -19,24 +19,24 @@ resources.
 
 ## 2. Current Status
 
-- Current stage: Stage 2 - AWS Data Ingestion Layer, in progress
+- Current stage: Stage 2/Architecture Pivot - Multi-tenant foundation in progress
 - Last completed milestone: 2026-06-29 - Stage 1 auth, RBAC, and manual verification completed
 - Known broken / in-progress things right now:
-  - Session persistence is intentionally memory-only, so refreshing the frontend signs the user out.
+  - Session persistence is no longer memory-only; the app is being updated to keep users signed in across refreshes.
   - Stage 2 sync code has been partially verified with a real admin-triggered sync.
   - Cost Explorer was only recently enabled in the sandbox account, so cost data may still be unavailable for up to about 24 hours.
-  - Cost Explorer data is still warming up, but resource inventory and CloudWatch metric sync are now working with real sandbox resources.
+  - A multitenant migration is in progress so organizations can own separate AWS connections and isolated synced datasets.
 
 ## 3. Architecture Summary
 
 The repository now contains a FastAPI backend, a Vite + React frontend, and a
 PostgreSQL service defined in Docker Compose. The backend exposes `/health`,
-registration, login, refresh, current-user, admin-only test endpoints, and a
-manual `POST /sync/run` endpoint. Stage 2 also adds AWS client factories,
-service modules for Cost Explorer, CloudWatch, and resource inventory, plus an
-APScheduler background sync hook wired into FastAPI lifespan. The frontend is
-still the Stage 1 auth shell at this point. See `docs/architecture.md` for the
-high-level structure.
+auth endpoints, organization endpoints, admin-only test endpoints, and a manual
+`POST /sync/run` endpoint. The data model now includes organizations and
+organization-specific AWS connections so synced AWS data can be scoped to a
+client workspace instead of one shared global dataset. APScheduler remains
+wired into FastAPI lifespan for background sync execution. See
+`docs/architecture.md` for the high-level structure.
 
 ## 4. Key Decisions & Why (running ADR log)
 
@@ -97,6 +97,23 @@ Stage 2 may run on a schedule and can also be triggered manually through the
 demo UI/API. To avoid duplicate records on repeated syncs, the ingestion tables
 use natural-key uniqueness constraints and `ON CONFLICT DO UPDATE` upserts.
 
+### 2026-07-01 - Pivot to multitenancy before building the full dashboard
+
+During Stage 3 planning we checked the actual Stage 1/2 code and confirmed the
+app was only single-tenant with shared AWS credentials from `.env`. Since the
+product goal is to let multiple clients use the website and see only their own
+AWS data, we paused the dashboard work and introduced organizations,
+organization-owned AWS connection records, tenant-scoped sync data, and
+organization-aware sync execution first.
+
+### 2026-07-01 - Persist frontend sessions at the user's request
+
+The original Stage 1 design intentionally logged users out on refresh because
+tokens lived only in memory. The product direction changed and the user asked
+for sessions to survive refresh, so the frontend now persists session data in
+browser storage. This improves usability but increases the importance of XSS
+hardening later.
+
 ## 5. Environment Variables / Secrets Reference
 
 - `DATABASE_URL`
@@ -115,6 +132,9 @@ use natural-key uniqueness constraints and `ON CONFLICT DO UPDATE` upserts.
 - `AWS_REGION`
   - Purpose: default AWS region for CloudWatch and resource inventory operations
   - Where to get it: choose the sandbox region you plan to test with, such as `us-east-1`
+- `AWS_CONNECTION_ENCRYPTION_KEY`
+  - Purpose: dedicated Fernet key for encrypting organization-specific AWS credentials at rest
+  - Where to get it: generate locally with `Fernet.generate_key()`; if omitted, the app derives a fallback key from `JWT_SECRET_KEY`
 - `AWS_SYNC_INTERVAL_HOURS`
   - Purpose: scheduler interval for automatic Stage 2 sync jobs
   - Where to get it: set locally; `6` is the current default
@@ -206,6 +226,17 @@ use natural-key uniqueness constraints and `ON CONFLICT DO UPDATE` upserts.
   - Rebuild the backend and rerun `POST /sync/run` after launching an EC2 instance.
   - Confirm the sync completes without a JSON serialization traceback and `resources_synced` becomes non-zero.
 
+### 2026-07-01 - Single-tenant AWS settings blocked real multi-client usage
+
+- Symptom:
+  - Multiple users could log into the same app, but they all pointed at the same AWS account because the sync layer used one global credential set from `.env`.
+- Root cause:
+  - Stage 2 originally modeled AWS configuration as application-wide settings instead of organization-owned data.
+- Fix:
+  - Added `organizations`, `aws_connections`, tenant ownership on synced tables, organization-aware sync execution, and a frontend path for admins to save organization-specific AWS credentials.
+- How to verify it's still fixed:
+  - Register a new organization, save a different AWS connection for it, and confirm sync uses that organization's settings instead of the legacy global fallback.
+
 ## 7. Change Log (one entry per commit)
 
 ### 2026-06-27 - Stage 0 bootstrap scaffold
@@ -269,11 +300,28 @@ use natural-key uniqueness constraints and `ON CONFLICT DO UPDATE` upserts.
   - The next meaningful verification step is to add at least one sandbox resource in the configured region and rerun sync.
   - If sync crashes while inventory is non-empty, check Section 6 for the AWS datetime JSON serialization fix.
 
+### 2026-07-01 - Multitenant foundation and persistent sessions
+- What changed:
+  - Added organizations, organization-specific AWS connection storage, tenant ownership columns on synced tables, and a multitenant migration.
+  - Updated auth tokens and `/auth/me` responses to include organization context.
+  - Added organization endpoints for reading workspace context and saving AWS credentials.
+  - Switched frontend auth state to persist across refresh and updated registration to create an organization workspace.
+- Why:
+  - The product goal requires multiple client organizations to use the app without sharing data or AWS credentials.
+- Files touched:
+  - Backend models, migrations, auth/sync/org APIs, AWS credential handling, frontend auth/session files, and docs/project memory.
+- Manual test performed:
+  - Code compile pass only so far; manual multitenant verification is still pending.
+- Anything the next session needs to know:
+  - Existing tokens from before the subject-format change will no longer be valid; re-login is expected.
+  - Organizations without saved AWS credentials will now receive a clear warning instead of attempting a broken sync.
+
 ## 8. Manual Test Checklist Status
 
 - Stage 0: base Docker/frontend flow confirmed during local setup; AWS setup still being completed separately for Stage 2 readiness
 - Stage 1: passed on 2026-06-29
 - Stage 2: partially verified on 2026-07-01; resource inventory and metrics confirmed, waiting on Cost Explorer readiness for full gate coverage
+- Multitenancy pivot: implementation in progress as of 2026-07-01; manual verification pending
 
 ## 9. AWS Account / Sandbox Notes
 
@@ -299,3 +347,5 @@ use natural-key uniqueness constraints and `ON CONFLICT DO UPDATE` upserts.
   - `metric_samples_synced: 3`
   - `forecast_points: 0`
   - warning: Cost Explorer data not available yet
+- Multitenancy note:
+  - The legacy sandbox data belongs to the default backfilled organization until separate organization-specific AWS connections are configured.

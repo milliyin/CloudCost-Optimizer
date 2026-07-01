@@ -54,8 +54,8 @@ export default function LoginPage() {
       <p className="eyebrow">Stage 1 access</p>
       <h1>Sign in</h1>
       <p className="lede">
-        Access tokens live in memory only. Refreshing the page will sign you out
-        by design to avoid persistent token storage in the browser.
+        Your session now persists across refresh so client workspaces stay
+        signed in between page loads.
       </p>
       <form className="auth-form" onSubmit={handleSubmit}>
         <label>

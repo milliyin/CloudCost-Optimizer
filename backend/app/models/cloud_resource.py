@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, Text, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -11,10 +11,11 @@ from app.db.base import Base
 class CloudResource(Base):
     __tablename__ = "cloud_resources"
     __table_args__ = (
-        UniqueConstraint("resource_id", "resource_type", name="uq_cloud_resources_identity"),
+        UniqueConstraint("organization_id", "resource_id", "resource_type", name="uq_cloud_resources_identity"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
     resource_id: Mapped[str] = mapped_column(String(255), index=True)
     resource_type: Mapped[str] = mapped_column(String(64), index=True)
     region: Mapped[str] = mapped_column(String(64), default="", server_default="")

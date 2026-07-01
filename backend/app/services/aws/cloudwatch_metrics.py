@@ -7,14 +7,19 @@ from botocore.exceptions import BotoCoreError, ClientError
 from app.core.config import settings
 from app.services.aws.client_factory import get_cloudwatch_client
 from app.services.aws.common import translate_aws_error
+from app.services.aws.credentials import AWSCredentials
 from app.services.aws.retry import aws_retry
 
 EC2_METRICS = ("CPUUtilization", "NetworkIn", "NetworkOut")
 
 
 @aws_retry()
-def _get_metric_data(instance_id: str) -> dict:
-    client = get_cloudwatch_client()
+def _get_metric_data(instance_id: str, credentials: AWSCredentials) -> dict:
+    client = get_cloudwatch_client(
+        region=credentials.region,
+        access_key_id=credentials.access_key_id,
+        secret_access_key=credentials.secret_access_key,
+    )
     end_time = datetime.now(UTC)
     start_time = end_time - timedelta(hours=settings.aws_metric_lookback_hours)
 
@@ -45,9 +50,9 @@ def _get_metric_data(instance_id: str) -> dict:
     )
 
 
-def get_instance_metric_samples(instance_id: str) -> list[dict]:
+def get_instance_metric_samples(instance_id: str, credentials: AWSCredentials) -> list[dict]:
     try:
-        response = _get_metric_data(instance_id)
+        response = _get_metric_data(instance_id, credentials)
     except (ClientError, BotoCoreError) as error:
         raise translate_aws_error(error, service="CloudWatch") from error
 

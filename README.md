@@ -32,13 +32,14 @@ The project currently includes:
 - Stage 0 foundation with Docker, FastAPI, React, and PostgreSQL
 - Stage 1 authentication with registration, login, refresh, `/auth/me`, and role checks
 - Stage 2 ingestion foundations with AWS client factories, sync orchestration, scheduler wiring, and an admin-only `/sync/run` endpoint
+- Multi-tenant foundations with organization-owned users, organization-specific AWS connections, and tenant-scoped synced data
 - A protected dashboard shell that confirms session and admin-route behavior
 
 Current session behavior:
 
-- Access and refresh tokens are kept in memory only
-- Refreshing the browser intentionally signs the user out
-- This avoids storing tokens in `localStorage`, reducing XSS exposure for this portfolio build
+- Access and refresh tokens are persisted locally so users stay signed in across refreshes
+- Each organization can save its own AWS credentials for isolated sync behavior
+- Per-organization AWS credentials are encrypted before storage on the backend
 
 AWS sync notes:
 

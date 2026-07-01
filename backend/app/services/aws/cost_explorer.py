@@ -6,6 +6,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 from app.services.aws.client_factory import get_ce_client
 from app.services.aws.common import translate_aws_error
+from app.services.aws.credentials import AWSCredentials
 from app.services.aws.retry import aws_retry
 
 
@@ -16,9 +17,13 @@ def _default_start_end(lookback_days: int) -> tuple[str, str]:
 
 
 @aws_retry()
-def _get_cost_and_usage(group_key: str, lookback_days: int) -> dict:
+def _get_cost_and_usage(group_key: str, lookback_days: int, credentials: AWSCredentials) -> dict:
     start, end = _default_start_end(lookback_days)
-    client = get_ce_client()
+    client = get_ce_client(
+        region=credentials.region,
+        access_key_id=credentials.access_key_id,
+        secret_access_key=credentials.secret_access_key,
+    )
     return client.get_cost_and_usage(
         TimePeriod={"Start": start, "End": end},
         Granularity="DAILY",
@@ -27,9 +32,9 @@ def _get_cost_and_usage(group_key: str, lookback_days: int) -> dict:
     )
 
 
-def get_cost_grouped_by_service(lookback_days: int) -> list[dict]:
+def get_cost_grouped_by_service(lookback_days: int, credentials: AWSCredentials) -> list[dict]:
     try:
-        response = _get_cost_and_usage("SERVICE", lookback_days)
+        response = _get_cost_and_usage("SERVICE", lookback_days, credentials)
     except (ClientError, BotoCoreError) as error:
         raise translate_aws_error(error, service="Cost Explorer") from error
 
@@ -51,9 +56,9 @@ def get_cost_grouped_by_service(lookback_days: int) -> list[dict]:
     return records
 
 
-def get_cost_grouped_by_region(lookback_days: int) -> list[dict]:
+def get_cost_grouped_by_region(lookback_days: int, credentials: AWSCredentials) -> list[dict]:
     try:
-        response = _get_cost_and_usage("REGION", lookback_days)
+        response = _get_cost_and_usage("REGION", lookback_days, credentials)
     except (ClientError, BotoCoreError) as error:
         raise translate_aws_error(error, service="Cost Explorer") from error
 
@@ -76,10 +81,14 @@ def get_cost_grouped_by_region(lookback_days: int) -> list[dict]:
 
 
 @aws_retry()
-def get_cost_forecast() -> dict:
+def get_cost_forecast(credentials: AWSCredentials) -> dict:
     start_date = date.today().isoformat()
     end_date = (date.today() + timedelta(days=30)).isoformat()
-    client = get_ce_client()
+    client = get_ce_client(
+        region=credentials.region,
+        access_key_id=credentials.access_key_id,
+        secret_access_key=credentials.secret_access_key,
+    )
     try:
         return client.get_cost_forecast(
             TimePeriod={"Start": start_date, "End": end_date},

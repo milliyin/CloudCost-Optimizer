@@ -10,12 +10,29 @@ const emptySession = {
   refreshToken: null,
 };
 
+const storageKey = "cloudcost-session";
+
+function getStoredSession() {
+  try {
+    const rawValue = window.localStorage.getItem(storageKey);
+    return rawValue ? JSON.parse(rawValue) : emptySession;
+  } catch {
+    return emptySession;
+  }
+}
+
 export function AuthProvider({ children }) {
-  const [session, setSession] = useState(emptySession);
+  const [session, setSession] = useState(() => {
+    if (typeof window === "undefined") {
+      return emptySession;
+    }
+    return getStoredSession();
+  });
   const sessionRef = useRef(session);
 
   useEffect(() => {
     sessionRef.current = session;
+    window.localStorage.setItem(storageKey, JSON.stringify(session));
   }, [session]);
 
   useEffect(() => {
@@ -32,6 +49,12 @@ export function AuthProvider({ children }) {
         clearSession() {
           setSession(emptySession);
         },
+        replaceUser(user) {
+          setSession((currentSession) => ({
+            ...currentSession,
+            user,
+          }));
+        },
       },
     });
   }, []);
@@ -47,6 +70,12 @@ export function AuthProvider({ children }) {
         accessToken: payload.tokens.access_token,
         refreshToken: payload.tokens.refresh_token,
       });
+    },
+    updateUser(user) {
+      setSession((currentSession) => ({
+        ...currentSession,
+        user,
+      }));
     },
     logout() {
       setSession(emptySession);

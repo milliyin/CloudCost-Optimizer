@@ -1,8 +1,10 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 
 from app.api.deps import DbSession, require_role
+from app.models.organization import Organization
 from app.models.user import User, UserRole
 from app.services.aws.errors import AWSServiceError
 from app.services.sync_service import run_sync
@@ -15,8 +17,12 @@ async def run_sync_now(
     db: DbSession,
     current_user: Annotated[User, Depends(require_role(UserRole.ADMIN))],
 ) -> dict:
+    organization = await db.scalar(select(Organization).where(Organization.id == current_user.organization_id))
+    if organization is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+
     try:
-        summary = await run_sync(db)
+        summary = await run_sync(db, organization)
     except AWSServiceError as error:
         await db.rollback()
         raise HTTPException(
@@ -29,6 +35,6 @@ async def run_sync_now(
         ) from error
 
     return {
-        "message": f"Sync completed for {current_user.email}",
+        "message": f"Sync completed for {current_user.email} in {organization.name}",
         "summary": summary,
     }

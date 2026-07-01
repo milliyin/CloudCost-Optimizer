@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, Numeric, String, UniqueConstraint, func
+from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -12,6 +12,7 @@ class CostRecord(Base):
     __tablename__ = "cost_records"
     __table_args__ = (
         UniqueConstraint(
+            "organization_id",
             "date",
             "service",
             "region",
@@ -22,6 +23,7 @@ class CostRecord(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
     date: Mapped[date] = mapped_column(Date, index=True)
     service: Mapped[str] = mapped_column(String(255), default="", server_default="")
     region: Mapped[str] = mapped_column(String(255), default="", server_default="")

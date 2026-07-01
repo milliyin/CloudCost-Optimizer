@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from sqlalchemy import select
 
 from app.core.config import settings
 from app.db.session import SessionLocal
+from app.models.organization import Organization
 from app.services.sync_service import run_sync
 
 scheduler = AsyncIOScheduler()
@@ -11,7 +13,9 @@ scheduler = AsyncIOScheduler()
 
 async def scheduled_sync_job() -> None:
     async with SessionLocal() as session:
-        await run_sync(session)
+        organizations = (await session.scalars(select(Organization))).all()
+        for organization in organizations:
+            await run_sync(session, organization)
 
 
 def start_scheduler() -> None:

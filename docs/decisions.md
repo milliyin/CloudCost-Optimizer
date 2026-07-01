@@ -42,3 +42,18 @@ Stage 2 stores synced AWS data with database-level uniqueness constraints and
 PostgreSQL upserts. That allows repeated manual sync runs without creating
 duplicate cost, resource, or metric rows, which is important for demoing the
 system safely and repeatedly.
+
+## 2026-07-01 - Pivot from single-tenant AWS settings to organization-owned connections
+
+The first Stage 2 implementation used one global AWS credential set from `.env`,
+which meant all users were looking at the same dataset. To support multiple
+clients safely, we introduced organizations, tenant-owned AWS connection
+records, tenant-scoped sync tables, and per-organization sync execution.
+
+## 2026-07-01 - Persist sessions across refresh at the user's request
+
+The earlier memory-only session approach reduced XSS exposure but signed users
+out on refresh. Because the product direction now prioritizes real client
+usability, sessions are persisted in browser storage so users stay logged in.
+This is a conscious tradeoff and should be revisited with hardened production
+session handling later.

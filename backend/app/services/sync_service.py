@@ -10,19 +10,22 @@ from app.core.config import settings
 from app.models.cloud_resource import CloudResource
 from app.models.cost_record import CostRecord
 from app.models.metric_sample import MetricSample
+from app.models.organization import Organization
 from app.services.aws.cloudwatch_metrics import get_instance_metric_samples
+from app.services.aws.credentials import get_organization_aws_credentials
 from app.services.aws.cost_explorer import get_cost_forecast, get_cost_grouped_by_region, get_cost_grouped_by_service
 from app.services.aws.errors import AWSServiceError
 from app.services.aws.resource_inventory import get_resource_inventory
 
 
-async def _upsert_cost_records(db: AsyncSession, payloads: list[dict], synced_at: datetime) -> int:
+async def _upsert_cost_records(db: AsyncSession, payloads: list[dict], synced_at: datetime, organization_id: int) -> int:
     if not payloads:
         return 0
 
     values = [
         {
             **payload,
+            "organization_id": organization_id,
             "amount": Decimal(str(payload["amount"])),
             "synced_at": synced_at,
         }
@@ -41,11 +44,12 @@ async def _upsert_cost_records(db: AsyncSession, payloads: list[dict], synced_at
     return len(values)
 
 
-async def _upsert_resources(db: AsyncSession, payloads: list[dict]) -> int:
+async def _upsert_resources(db: AsyncSession, payloads: list[dict], organization_id: int) -> int:
     if not payloads:
         return 0
 
-    statement = insert(CloudResource).values(payloads)
+    values = [{**payload, "organization_id": organization_id} for payload in payloads]
+    statement = insert(CloudResource).values(values)
     statement = statement.on_conflict_do_update(
         constraint="uq_cloud_resources_identity",
         set_={
@@ -57,14 +61,15 @@ async def _upsert_resources(db: AsyncSession, payloads: list[dict]) -> int:
         },
     )
     await db.execute(statement)
-    return len(payloads)
+    return len(values)
 
 
-async def _upsert_metric_samples(db: AsyncSession, payloads: list[dict]) -> int:
+async def _upsert_metric_samples(db: AsyncSession, payloads: list[dict], organization_id: int) -> int:
     if not payloads:
         return 0
 
-    statement = insert(MetricSample).values(payloads)
+    values = [{**payload, "organization_id": organization_id} for payload in payloads]
+    statement = insert(MetricSample).values(values)
     statement = statement.on_conflict_do_update(
         constraint="uq_metric_samples_identity",
         set_={
@@ -73,12 +78,15 @@ async def _upsert_metric_samples(db: AsyncSession, payloads: list[dict]) -> int:
         },
     )
     await db.execute(statement)
-    return len(payloads)
+    return len(values)
 
 
-async def run_sync(db: AsyncSession) -> dict:
+async def run_sync(db: AsyncSession, organization: Organization) -> dict:
     synced_at = datetime.now(UTC)
+    credentials = await get_organization_aws_credentials(db, organization.id)
     summary = {
+        "organization_id": organization.id,
+        "organization_name": organization.name,
         "cost_records_synced": 0,
         "resources_synced": 0,
         "metric_samples_synced": 0,
@@ -86,10 +94,16 @@ async def run_sync(db: AsyncSession) -> dict:
         "warnings": [],
     }
 
+    if credentials is None:
+        summary["warnings"].append(
+            "No AWS connection is configured for this organization yet. Save organization-specific AWS credentials before running sync."
+        )
+        return summary
+
     try:
-        service_costs = get_cost_grouped_by_service(settings.aws_cost_lookback_days)
-        region_costs = get_cost_grouped_by_region(settings.aws_cost_lookback_days)
-        forecast = get_cost_forecast()
+        service_costs = get_cost_grouped_by_service(settings.aws_cost_lookback_days, credentials)
+        region_costs = get_cost_grouped_by_region(settings.aws_cost_lookback_days, credentials)
+        forecast = get_cost_forecast(credentials)
     except AWSServiceError as error:
         if error.service == "Cost Explorer":
             summary["warnings"].append(str(error))
@@ -99,20 +113,20 @@ async def run_sync(db: AsyncSession) -> dict:
         else:
             raise
 
-    inventory = get_resource_inventory()
+    inventory = get_resource_inventory(credentials)
     ec2_instance_ids = [resource["resource_id"] for resource in inventory if resource["resource_type"] == "ec2_instance"]
 
     metric_samples: list[dict] = []
     for instance_id in ec2_instance_ids:
         try:
-            metric_samples.extend(get_instance_metric_samples(instance_id))
+            metric_samples.extend(get_instance_metric_samples(instance_id, credentials))
         except AWSServiceError as error:
             summary["warnings"].append(f"{instance_id}: {error}")
 
-    summary["cost_records_synced"] += await _upsert_cost_records(db, service_costs, synced_at)
-    summary["cost_records_synced"] += await _upsert_cost_records(db, region_costs, synced_at)
-    summary["resources_synced"] = await _upsert_resources(db, inventory)
-    summary["metric_samples_synced"] = await _upsert_metric_samples(db, metric_samples)
+    summary["cost_records_synced"] += await _upsert_cost_records(db, service_costs, synced_at, organization.id)
+    summary["cost_records_synced"] += await _upsert_cost_records(db, region_costs, synced_at, organization.id)
+    summary["resources_synced"] = await _upsert_resources(db, inventory, organization.id)
+    summary["metric_samples_synced"] = await _upsert_metric_samples(db, metric_samples, organization.id)
     summary["forecast_points"] = len(forecast.get("ForecastResultsByTime", []))
 
     await db.commit()
