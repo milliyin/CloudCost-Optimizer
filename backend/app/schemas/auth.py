@@ -14,6 +14,12 @@ class RegisterRequest(BaseModel):
     role: UserRole
 
 
+class CreateTeammateRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+    role: UserRole
+
+
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)

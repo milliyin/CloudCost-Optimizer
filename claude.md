@@ -26,6 +26,7 @@ resources.
   - Stage 2 sync code has been partially verified with a real admin-triggered sync.
   - Cost Explorer was only recently enabled in the sandbox account, so cost data may still be unavailable for up to about 24 hours.
   - A multitenant migration is in progress so organizations can own separate AWS connections and isolated synced datasets.
+  - Same-organization teammate onboarding is being added so admins can create viewer/admin users inside an existing client workspace.
 
 ## 3. Architecture Summary
 
@@ -113,6 +114,14 @@ tokens lived only in memory. The product direction changed and the user asked
 for sessions to survive refresh, so the frontend now persists session data in
 browser storage. This improves usability but increases the importance of XSS
 hardening later.
+
+### 2026-07-01 - Existing organizations need admin-created teammates, not public re-registration
+
+Once public registration was changed to create a brand-new organization, it no
+longer made sense for a second user in the same client account to use that same
+flow. We therefore added an admin-only teammate creation path inside the
+organization dashboard instead of reopening public signup against existing org
+names.
 
 ## 5. Environment Variables / Secrets Reference
 
@@ -237,6 +246,17 @@ hardening later.
 - How to verify it's still fixed:
   - Register a new organization, save a different AWS connection for it, and confirm sync uses that organization's settings instead of the legacy global fallback.
 
+### 2026-07-01 - Public registration no longer supported adding users to an existing organization
+
+- Symptom:
+  - After multitenancy was introduced, creating `admin` in `org1` worked, but trying to create a `viewer` in `org1` through the public registration screen failed because the organization name already existed.
+- Root cause:
+  - Public registration intentionally creates new organizations and rejects duplicate organization names, but there was no same-org teammate onboarding path yet.
+- Fix:
+  - Added an admin-only teammate creation endpoint and dashboard form so organization admins can create additional users inside their existing workspace.
+- How to verify it's still fixed:
+  - Log in as an organization admin, create a teammate from the dashboard, then log in as that teammate and confirm both users belong to the same organization.
+
 ## 7. Change Log (one entry per commit)
 
 ### 2026-06-27 - Stage 0 bootstrap scaffold
@@ -315,6 +335,19 @@ hardening later.
 - Anything the next session needs to know:
   - Existing tokens from before the subject-format change will no longer be valid; re-login is expected.
   - Organizations without saved AWS credentials will now receive a clear warning instead of attempting a broken sync.
+
+### 2026-07-01 - Admin-only teammate onboarding
+- What changed:
+  - Added `POST /auth/teammates` as an admin-only API for creating users inside the current organization.
+  - Added a dashboard form so org admins can create viewer or admin teammates without public re-registration.
+- Why:
+  - Multiple users in the same client organization need a secure same-org onboarding path after public signup was repurposed to create new organizations.
+- Files touched:
+  - Auth API, auth schemas, dashboard UI, and project memory.
+- Manual test performed:
+  - Not yet in this session; manual verification is pending.
+- Anything the next session needs to know:
+  - The correct flow is now: public registration creates a new org, then admins create additional teammates inside that org.
 
 ## 8. Manual Test Checklist Status
 

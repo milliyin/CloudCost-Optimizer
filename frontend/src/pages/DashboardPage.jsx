@@ -30,6 +30,16 @@ export default function DashboardPage() {
     message: "",
     error: "",
   });
+  const [teammateForm, setTeammateForm] = useState({
+    email: "",
+    password: "",
+    role: "viewer",
+  });
+  const [teammateState, setTeammateState] = useState({
+    saving: false,
+    message: "",
+    error: "",
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -138,6 +148,44 @@ export default function DashboardPage() {
         saving: false,
         message: "",
         error: error instanceof Error ? error.message : "Failed to save AWS connection",
+      });
+    }
+  }
+
+  async function handleTeammateCreate(event) {
+    event.preventDefault();
+    setTeammateState({
+      saving: true,
+      message: "",
+      error: "",
+    });
+
+    try {
+      const response = await apiFetch("/auth/teammates", {
+        method: "POST",
+        body: JSON.stringify(teammateForm),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail ?? "Failed to create teammate");
+      }
+
+      setTeammateState({
+        saving: false,
+        message: `Created ${data.email} as ${data.role} in ${data.organization.name}.`,
+        error: "",
+      });
+      setTeammateForm({
+        email: "",
+        password: "",
+        role: "viewer",
+      });
+    } catch (error) {
+      setTeammateState({
+        saving: false,
+        message: "",
+        error: error instanceof Error ? error.message : "Failed to create teammate",
       });
     }
   }
@@ -259,6 +307,52 @@ export default function DashboardPage() {
               {connectionState.message ? <p className="form-success">{connectionState.message}</p> : null}
               <button className="primary-button" type="submit" disabled={connectionState.saving}>
                 {connectionState.saving ? "Saving..." : "Save AWS connection"}
+              </button>
+            </form>
+          </article>
+        ) : null}
+
+        {auth.user?.role === "admin" ? (
+          <article className="info-card">
+            <h2>Create teammate</h2>
+            <p className="inline-note">
+              Add more users to this same organization workspace without going
+              through public registration again.
+            </p>
+            <form className="auth-form" onSubmit={handleTeammateCreate}>
+              <label>
+                <span>Email</span>
+                <input
+                  required
+                  type="email"
+                  value={teammateForm.email}
+                  onChange={(event) => setTeammateForm((current) => ({ ...current, email: event.target.value }))}
+                />
+              </label>
+              <label>
+                <span>Password</span>
+                <input
+                  required
+                  type="password"
+                  minLength={8}
+                  value={teammateForm.password}
+                  onChange={(event) => setTeammateForm((current) => ({ ...current, password: event.target.value }))}
+                />
+              </label>
+              <label>
+                <span>Role</span>
+                <select
+                  value={teammateForm.role}
+                  onChange={(event) => setTeammateForm((current) => ({ ...current, role: event.target.value }))}
+                >
+                  <option value="viewer">viewer</option>
+                  <option value="admin">admin</option>
+                </select>
+              </label>
+              {teammateState.error ? <p className="form-error">{teammateState.error}</p> : null}
+              {teammateState.message ? <p className="form-success">{teammateState.message}</p> : null}
+              <button className="primary-button" type="submit" disabled={teammateState.saving}>
+                {teammateState.saving ? "Creating..." : "Create teammate"}
               </button>
             </form>
           </article>

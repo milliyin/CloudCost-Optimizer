@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.models.organization import Organization
 from app.core.limiting import limiter
 from app.models.user import User, UserRole
-from app.schemas.auth import AuthSessionResponse, LoginRequest, RefreshRequest, RegisterRequest, TokenPairResponse, UserResponse
+from app.schemas.auth import AuthSessionResponse, CreateTeammateRequest, LoginRequest, RefreshRequest, RegisterRequest, TokenPairResponse, UserResponse
 from app.services.security import create_access_token, create_refresh_token, decode_token, hash_password, is_invalid_token_error, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -110,3 +110,32 @@ async def admin_check(
     current_user: Annotated[User, Depends(require_role(UserRole.ADMIN))],
 ) -> dict[str, str]:
     return {"message": f"Admin access granted for {current_user.email}"}
+
+
+@router.post("/teammates", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def create_teammate(
+    payload: CreateTeammateRequest,
+    db: DbSession,
+    current_user: Annotated[User, Depends(require_role(UserRole.ADMIN))],
+) -> User:
+    existing_user = await db.scalar(select(User).where(User.email == payload.email))
+    if existing_user is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+
+    teammate = User(
+        email=payload.email,
+        hashed_password=hash_password(payload.password),
+        organization_id=current_user.organization_id,
+        role=payload.role,
+    )
+    db.add(teammate)
+    await db.commit()
+
+    created_teammate = await db.scalar(
+        select(User)
+        .options(selectinload(User.organization))
+        .where(User.email == payload.email)
+    )
+    if created_teammate is None:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to load created teammate")
+    return created_teammate
