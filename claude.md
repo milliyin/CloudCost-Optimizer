@@ -25,7 +25,7 @@ resources.
   - Session persistence is intentionally memory-only, so refreshing the frontend signs the user out.
   - Stage 2 sync code has been partially verified with a real admin-triggered sync.
   - Cost Explorer was only recently enabled in the sandbox account, so cost data may still be unavailable for up to about 24 hours.
-  - The current sandbox appears to have no discovered resources yet in the configured region, so resource and metric tables are still empty.
+  - Cost Explorer data is still warming up, but resource inventory and CloudWatch metric sync are now working with real sandbox resources.
 
 ## 3. Architecture Summary
 
@@ -194,6 +194,18 @@ use natural-key uniqueness constraints and `ON CONFLICT DO UPDATE` upserts.
   - Create at least one EC2 instance or other supported resource in the configured region.
   - Re-run `POST /sync/run` and confirm `resources_synced` becomes non-zero.
 
+### 2026-07-01 - Resource inventory sync failed when AWS payloads contained datetimes
+
+- Symptom:
+  - `POST /sync/run` returned `500 Internal Server Error` after a sandbox EC2 instance was launched.
+- Root cause:
+  - The resource inventory code attempted to `json.dumps()` AWS attachment metadata directly, but boto3 payloads can contain Python `datetime` objects that are not JSON serializable by the default encoder.
+- Fix:
+  - Added a safe JSON helper that serializes nested AWS objects with `default=str` before storing them in `tags_json`.
+- How to verify it's still fixed:
+  - Rebuild the backend and rerun `POST /sync/run` after launching an EC2 instance.
+  - Confirm the sync completes without a JSON serialization traceback and `resources_synced` becomes non-zero.
+
 ## 7. Change Log (one entry per commit)
 
 ### 2026-06-27 - Stage 0 bootstrap scaffold
@@ -249,16 +261,19 @@ use natural-key uniqueness constraints and `ON CONFLICT DO UPDATE` upserts.
   - Logged in as admin and called `POST /sync/run` successfully.
   - Confirmed the response handled fresh Cost Explorer setup gracefully with a warning instead of a crash.
   - Observed `cost_records_synced: 0`, `resources_synced: 0`, `metric_samples_synced: 0`, and `forecast_points: 0` on the initial sync.
+  - After launching a sandbox EC2 instance and fixing JSON serialization, reran `POST /sync/run` successfully.
+  - Observed `resources_synced: 2` and `metric_samples_synced: 3` with the Cost Explorer warm-up warning still present.
 - Anything the next session needs to know:
   - Cost Explorer may still be warming up in the sandbox account.
   - Sync should be tested first with the admin-only `/sync/run` endpoint before relying on the scheduler.
   - The next meaningful verification step is to add at least one sandbox resource in the configured region and rerun sync.
+  - If sync crashes while inventory is non-empty, check Section 6 for the AWS datetime JSON serialization fix.
 
 ## 8. Manual Test Checklist Status
 
 - Stage 0: base Docker/frontend flow confirmed during local setup; AWS setup still being completed separately for Stage 2 readiness
 - Stage 1: passed on 2026-06-29
-- Stage 2: partially verified on 2026-07-01; waiting on Cost Explorer readiness and sandbox resources for full gate coverage
+- Stage 2: partially verified on 2026-07-01; resource inventory and metrics confirmed, waiting on Cost Explorer readiness for full gate coverage
 
 ## 9. AWS Account / Sandbox Notes
 
@@ -276,5 +291,11 @@ use natural-key uniqueness constraints and `ON CONFLICT DO UPDATE` upserts.
   - `cost_records_synced: 0`
   - `resources_synced: 0`
   - `metric_samples_synced: 0`
+  - `forecast_points: 0`
+  - warning: Cost Explorer data not available yet
+- Follow-up sync after launching EC2 on 2026-07-01:
+  - `cost_records_synced: 0`
+  - `resources_synced: 2`
+  - `metric_samples_synced: 3`
   - `forecast_points: 0`
   - warning: Cost Explorer data not available yet

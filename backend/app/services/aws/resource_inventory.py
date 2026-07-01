@@ -15,6 +15,10 @@ def _serialize_tags(tags: list[dict] | None) -> str:
     return json.dumps({tag["Key"]: tag["Value"] for tag in (tags or [])})
 
 
+def _json_dumps(data: dict) -> str:
+    return json.dumps(data, default=str)
+
+
 @aws_retry()
 def _describe_instances() -> dict:
     return get_ec2_client().describe_instances()
@@ -76,7 +80,7 @@ def get_resource_inventory() -> list[dict]:
                 "region": volume.get("AvailabilityZone", "")[:-1] if volume.get("AvailabilityZone") else settings.aws_region,
                 "state": volume.get("State", ""),
                 "instance_type": "",
-                "tags_json": json.dumps(
+                "tags_json": _json_dumps(
                     {
                         **{tag["Key"]: tag["Value"] for tag in volume.get("Tags", [])},
                         "attachments": attachments,
@@ -94,7 +98,7 @@ def get_resource_inventory() -> list[dict]:
                 "region": settings.aws_region,
                 "state": "associated" if address.get("AssociationId") else "unassociated",
                 "instance_type": "",
-                "tags_json": json.dumps(
+                "tags_json": _json_dumps(
                     {
                         **{tag["Key"]: tag["Value"] for tag in address.get("Tags", [])},
                         "association_id": address.get("AssociationId", ""),
@@ -114,7 +118,7 @@ def get_resource_inventory() -> list[dict]:
                 "region": settings.aws_region,
                 "state": db_instance.get("DBInstanceStatus", ""),
                 "instance_type": db_instance.get("DBInstanceClass", ""),
-                "tags_json": json.dumps(
+                "tags_json": _json_dumps(
                     {
                         "engine": db_instance.get("Engine", ""),
                         "arn": db_instance.get("DBInstanceArn", ""),
@@ -132,7 +136,7 @@ def get_resource_inventory() -> list[dict]:
                 "region": settings.aws_region,
                 "state": lb.get("State", {}).get("Code", ""),
                 "instance_type": lb.get("Type", ""),
-                "tags_json": json.dumps(
+                "tags_json": _json_dumps(
                     {
                         "name": lb.get("LoadBalancerName", ""),
                         "dns_name": lb.get("DNSName", ""),
