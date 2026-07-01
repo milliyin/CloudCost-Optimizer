@@ -23,8 +23,9 @@ resources.
 - Last completed milestone: 2026-06-29 - Stage 1 auth, RBAC, and manual verification completed
 - Known broken / in-progress things right now:
   - Session persistence is intentionally memory-only, so refreshing the frontend signs the user out.
-  - Stage 2 sync code is in progress and not manually verified yet.
+  - Stage 2 sync code has been partially verified with a real admin-triggered sync.
   - Cost Explorer was only recently enabled in the sandbox account, so cost data may still be unavailable for up to about 24 hours.
+  - The current sandbox appears to have no discovered resources yet in the configured region, so resource and metric tables are still empty.
 
 ## 3. Architecture Summary
 
@@ -181,6 +182,18 @@ use natural-key uniqueness constraints and `ON CONFLICT DO UPDATE` upserts.
   - Trigger `POST /sync/run` before Cost Explorer is ready.
   - Confirm the response includes a warning about Cost Explorer availability while the rest of the sync can still proceed where possible.
 
+### 2026-07-01 - Initial Stage 2 sync returned zero resources and metrics
+
+- Symptom:
+  - `POST /sync/run` completed successfully but returned `resources_synced: 0` and `metric_samples_synced: 0`.
+- Root cause:
+  - The current sandbox region likely has no EC2/RDS/EBS/EIP/ELB resources yet, so inventory collection has nothing to persist and CloudWatch has no EC2 instances to query.
+- Fix:
+  - No code fix required at this point. Create one or more lightweight sandbox resources in the configured `AWS_REGION` and rerun sync.
+- How to verify it's still fixed:
+  - Create at least one EC2 instance or other supported resource in the configured region.
+  - Re-run `POST /sync/run` and confirm `resources_synced` becomes non-zero.
+
 ## 7. Change Log (one entry per commit)
 
 ### 2026-06-27 - Stage 0 bootstrap scaffold
@@ -233,16 +246,19 @@ use natural-key uniqueness constraints and `ON CONFLICT DO UPDATE` upserts.
 - Files touched:
   - Backend config, models, migration files, AWS services, sync services, API routes, docs, and project memory.
 - Manual test performed:
-  - Not yet in this session. Stage 2 manual gate is still pending.
+  - Logged in as admin and called `POST /sync/run` successfully.
+  - Confirmed the response handled fresh Cost Explorer setup gracefully with a warning instead of a crash.
+  - Observed `cost_records_synced: 0`, `resources_synced: 0`, `metric_samples_synced: 0`, and `forecast_points: 0` on the initial sync.
 - Anything the next session needs to know:
   - Cost Explorer may still be warming up in the sandbox account.
   - Sync should be tested first with the admin-only `/sync/run` endpoint before relying on the scheduler.
+  - The next meaningful verification step is to add at least one sandbox resource in the configured region and rerun sync.
 
 ## 8. Manual Test Checklist Status
 
 - Stage 0: base Docker/frontend flow confirmed during local setup; AWS setup still being completed separately for Stage 2 readiness
 - Stage 1: passed on 2026-06-29
-- Stage 2: in progress as of 2026-07-01
+- Stage 2: partially verified on 2026-07-01; waiting on Cost Explorer readiness and sandbox resources for full gate coverage
 
 ## 9. AWS Account / Sandbox Notes
 
@@ -256,3 +272,9 @@ use natural-key uniqueness constraints and `ON CONFLICT DO UPDATE` upserts.
   service integrations are implemented.
 - The sandbox now has Cost Explorer enabled, but it was enabled recently enough
   that Stage 2 should expect transient "data not ready yet" behavior.
+- Initial manual sync result on 2026-07-01:
+  - `cost_records_synced: 0`
+  - `resources_synced: 0`
+  - `metric_samples_synced: 0`
+  - `forecast_points: 0`
+  - warning: Cost Explorer data not available yet
