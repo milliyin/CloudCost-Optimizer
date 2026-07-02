@@ -224,6 +224,10 @@ h1 {
   grid-column: span 4;
 }
 
+.side-panel-card {
+  grid-column: span 4;
+}
+
 .chart-card-wide,
 .resource-card {
   grid-column: span 8;
@@ -356,6 +360,7 @@ h1 {
   }
 
   .summary-card,
+  .side-panel-card,
   .chart-card,
   .chart-card-wide,
   .resource-card {

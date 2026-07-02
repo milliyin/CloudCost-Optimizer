@@ -530,7 +530,7 @@ export default function DashboardPage() {
         />
         <ResourceTable data={dashboard.resources} loading={dashboard.loading} />
 
-        <article className="info-card">
+        <article className="info-card side-panel-card">
           <h2>Workspace</h2>
           {organizationContext.loading ? <p>Loading organization...</p> : null}
           {organizationContext.data ? (
@@ -557,7 +557,7 @@ export default function DashboardPage() {
         </article>
 
         {auth.user?.role === "admin" ? (
-          <article className="info-card">
+          <article className="info-card side-panel-card">
             <h2>AWS connection settings</h2>
             <p className="inline-note">
               Save organization-specific AWS credentials here so each client workspace syncs only its own AWS account.
@@ -600,7 +600,7 @@ export default function DashboardPage() {
         ) : null}
 
         {auth.user?.role === "admin" ? (
-          <article className="info-card">
+          <article className="info-card side-panel-card">
             <h2>Manual sync</h2>
             <p className="inline-note">Run an organization-scoped AWS sync directly from the dashboard.</p>
             <button className="primary-button" type="button" onClick={handleManualSync} disabled={syncState.running}>
@@ -636,7 +636,7 @@ export default function DashboardPage() {
         ) : null}
 
         {auth.user?.role === "admin" ? (
-          <article className="info-card">
+          <article className="info-card side-panel-card">
             <h2>Create teammate</h2>
             <p className="inline-note">
               Add more users to this same organization workspace without going through public registration again.

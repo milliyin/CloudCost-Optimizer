@@ -26,6 +26,7 @@ resources.
   - Cost Explorer was only recently enabled in the sandbox account, so cost data may still be unavailable for up to about 24 hours.
   - Stage 3 dashboard queries and UI have been implemented but not manually verified yet after the multitenant pivot.
   - Cost charts may legitimately be empty until Cost Explorer data becomes available for the organization's AWS account.
+  - A Stage 3 frontend follow-up fix is in progress for dashboard API proxying and side-panel layout.
 
 ## 3. Architecture Summary
 
@@ -137,6 +138,20 @@ longer made sense to force admins back to the terminal just to trigger a sync.
 We therefore added a dashboard card with a manual sync button and inline sync
 summary so org admins can run and inspect their own workspace syncs directly in
 the UI.
+
+### 2026-07-02 - Dashboard API routes must all proxy through Vite in local dev
+
+Once Stage 3 introduced `/dashboard/*` endpoints, the Vite dev proxy needed to
+forward those routes just like `/auth`, `/organization`, and `/sync`. Without
+that proxy entry, the frontend received HTML from the dev server instead of API
+JSON, which surfaced as a JSON parse error in the dashboard.
+
+### 2026-07-02 - Stage 3 side panels need explicit grid spans
+
+The first dashboard grid pass gave the main summary/chart cards explicit spans,
+but the workspace/settings/sync/teammate panels inherited the default 1-column
+behavior in the 12-column layout. Adding a dedicated side-panel span keeps
+those admin tools readable on desktop without collapsing the main data views.
 
 ## 5. Environment Variables / Secrets Reference
 
@@ -272,6 +287,20 @@ the UI.
 - How to verify it's still fixed:
   - Log in as an organization admin, create a teammate from the dashboard, then log in as that teammate and confirm both users belong to the same organization.
 
+### 2026-07-02 - Dashboard loaded HTML instead of JSON for new Stage 3 endpoints
+
+- Symptom:
+  - The dashboard showed a red parse error like `Unexpected token '<'` and admin panels rendered with a broken layout.
+- Root cause:
+  - `/dashboard/*` was missing from the Vite proxy, so requests hit the frontend dev server instead of FastAPI.
+  - The Stage 3 right-side admin cards also lacked explicit grid span classes in the 12-column layout.
+- Fix:
+  - Added the `/dashboard` proxy entry in `frontend/vite.config.js`.
+  - Added `side-panel-card` classes and matching CSS grid spans for workspace/admin tool cards.
+- How to verify it's still fixed:
+  - Rebuild the frontend, reload the dashboard, and confirm the red JSON parse error disappears.
+  - Confirm the workspace, AWS connection, manual sync, and teammate cards render at readable widths.
+
 ## 7. Change Log (one entry per commit)
 
 ### 2026-06-27 - Stage 0 bootstrap scaffold
@@ -392,6 +421,19 @@ the UI.
 - Anything the next session needs to know:
   - Rebuild the frontend to install `recharts`.
   - Empty cost charts are expected until Cost Explorer data exists for that organization.
+
+### 2026-07-02 - Stage 3 dashboard follow-up fixes
+- What changed:
+  - Added `/dashboard` to the Vite proxy configuration.
+  - Added explicit side-panel grid sizing for workspace and admin tool cards.
+- Why:
+  - Fix a local-dev API routing bug and make the Stage 3 layout readable.
+- Files touched:
+  - Frontend Vite config, dashboard page classes, styles, and project memory.
+- Manual test performed:
+  - The issue was reproduced from the dashboard screenshot and fixed in code; browser re-verification is still pending for this exact follow-up patch.
+- Anything the next session needs to know:
+  - If the dashboard ever shows HTML/JSON parse errors again, check the Vite proxy coverage first.
 
 ## 8. Manual Test Checklist Status
 
