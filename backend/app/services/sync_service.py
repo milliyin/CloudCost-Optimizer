@@ -17,6 +17,7 @@ from app.services.aws.cost_explorer import get_cost_forecast, get_cost_grouped_b
 from app.services.aws.errors import AWSServiceError
 from app.services.aws.resource_inventory import get_resource_inventory
 from app.services.demo_seed import clear_demo_seed_workspace
+from app.services.findings_service import run_findings_detection
 
 
 async def _upsert_cost_records(db: AsyncSession, payloads: list[dict], synced_at: datetime, organization_id: int) -> int:
@@ -93,6 +94,7 @@ async def run_sync(db: AsyncSession, organization: Organization) -> dict:
         "resources_synced": 0,
         "metric_samples_synced": 0,
         "forecast_points": 0,
+        "findings_detected": 0,
         "warnings": [],
     }
 
@@ -132,6 +134,7 @@ async def run_sync(db: AsyncSession, organization: Organization) -> dict:
     summary["resources_synced"] = await _upsert_resources(db, inventory, organization.id)
     summary["metric_samples_synced"] = await _upsert_metric_samples(db, metric_samples, organization.id)
     summary["forecast_points"] = len(forecast.get("ForecastResultsByTime", []))
+    summary["findings_detected"] = await run_findings_detection(db, organization.id)
 
     await db.commit()
     return summary

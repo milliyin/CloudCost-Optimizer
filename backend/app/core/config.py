@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     aws_cost_lookback_days: int = 30
     aws_metric_lookback_hours: int = 24
     aws_metric_period_seconds: int = 3600
+    finding_min_sample_count: int = 3
+    finding_idle_cpu_threshold_percent: float = 10.0
+    finding_underutilized_cpu_upper_percent: float = 25.0
+    finding_oversized_cpu_threshold_percent: float = 85.0
+    finding_idle_network_average_bytes: float = 1000000.0
 
     model_config = SettingsConfigDict(
         env_file=".env",

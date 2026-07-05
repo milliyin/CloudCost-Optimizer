@@ -86,3 +86,20 @@ network columns made non-EC2 resources look broken because many cells read
 `n/a`. The dashboard now treats that as a UX problem instead of a data problem:
 it labels telemetry availability per row and reserves live CPU/network values
 for the EC2 resources that actually provide them in the current sync flow.
+
+## 2026-07-05 - Run Stage 4 findings immediately after each sync
+
+The current app already has the freshest resource and metric data in memory at
+the end of each organization sync, so that is the most reliable moment to
+evaluate waste and risk rules. Running findings detection immediately after
+resource and metric upserts keeps the evidence aligned with the latest sync
+without introducing a second job that could drift or lag behind.
+
+## 2026-07-05 - Use conservative first-pass thresholds for evidence-backed EC2 findings
+
+The initial Stage 4 rules use a simple conservative banding model over the
+existing EC2 CloudWatch samples: idle below 10% average CPU with low average
+network traffic, underutilized from 10% up to 25%, and likely performance
+mismatch at or above 85% average CPU. These thresholds are intentionally easy
+to explain in a portfolio context and can be tuned later as more historical
+data and richer metrics become available.

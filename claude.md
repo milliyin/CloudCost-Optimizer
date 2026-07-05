@@ -19,14 +19,14 @@ resources.
 
 ## 2. Current Status
 
-- Current stage: Stage 3 complete; Stage 4 waste detection is the next implementation target
+- Current stage: Stage 4 - Waste detection, first implementation pass in progress
 - Last completed milestone: 2026-06-29 - Stage 1 auth, RBAC, and manual verification completed
 - Known broken / in-progress things right now:
   - Stage 2 sync code has been verified for inventory and CloudWatch metric collection, but Cost Explorer data is still not returning usable spend rows from the sandbox account.
   - Stage 3 dashboard queries and UI are working with org-scoped data, including opt-in demo seeding, real-sync cleanup behavior, and role-aware admin controls.
   - Cost charts may legitimately be empty until Cost Explorer data becomes available for the organization's AWS account or the date range includes billable usage.
   - Resource inventory intentionally mixes inventory-only rows with EC2 metric-backed rows, so the table now labels telemetry availability instead of showing repeated `n/a` values for non-EC2 resources.
-  - Stage 4 findings are still frontend-derived heuristics right now; they are not yet persisted backend findings with evidence records.
+  - Stage 4 findings are now being moved into a real backend `findings` table and API, but the frontend and migration still need full end-to-end manual validation after this first implementation pass.
 
 ## 3. Architecture Summary
 
@@ -197,6 +197,32 @@ because many rows naturally showed `n/a`. Instead of pretending every resource
 has the same metrics, the dashboard now adds a telemetry label and uses `-` for
 non-applicable values so mixed resource types read as intentional.
 
+### 2026-07-05 - Run waste detection immediately after each sync
+
+The app already has the freshest resource inventory and EC2 metric samples in
+the same transaction at the end of each sync. We therefore run Stage 4
+findings detection immediately after the sync upserts instead of adding a
+separate detector schedule that could drift away from the latest org-scoped
+snapshot.
+
+### 2026-07-05 - Use conservative first-pass thresholds for persisted findings
+
+The first stored findings rules use simple conservative thresholds over the
+existing EC2 CloudWatch samples: idle below 10% average CPU with low average
+network traffic, underutilized from 10% to under 25% average CPU, and likely
+performance mismatch at or above 85% average CPU. These are intentionally
+explainable first-pass heuristics for a portfolio build and should be tuned as
+the project gains richer metrics and longer historical windows.
+
+Before locking the rules, we verified the AWS field shapes we depend on against
+official docs: EC2 volume `Attachments` in the Boto3 `describe_volumes`
+reference, Elastic IP `AssociationId` in the Boto3 `describe_addresses`
+reference, and EC2 `CPUUtilization` / `NetworkIn` / `NetworkOut` in the EC2
+CloudWatch metrics guide. We also checked AWS Support's cost optimization docs,
+which explicitly describe "Low utilization Amazon EC2 instances" and
+"Unassociated Elastic IP Addresses" as real cost-optimization concerns, which
+supports using those as the first portfolio-stage findings.
+
 ## 5. Environment Variables / Secrets Reference
 
 - `DATABASE_URL`
@@ -230,6 +256,21 @@ non-applicable values so mixed resource types read as intentional.
 - `AWS_METRIC_PERIOD_SECONDS`
   - Purpose: CloudWatch aggregation period for EC2 metric samples
   - Where to get it: set locally; `3600` is the current default
+- `FINDING_MIN_SAMPLE_COUNT`
+  - Purpose: minimum number of EC2 metric samples required before CPU-based findings run
+  - Where to get it: set locally; `3` is the current default
+- `FINDING_IDLE_CPU_THRESHOLD_PERCENT`
+  - Purpose: average CPU threshold for idle EC2 detection
+  - Where to get it: set locally; `10` is the current default
+- `FINDING_UNDERUTILIZED_CPU_UPPER_PERCENT`
+  - Purpose: upper CPU bound for "underutilized but not idle" EC2 detection
+  - Where to get it: set locally; `25` is the current default
+- `FINDING_OVERSIZED_CPU_THRESHOLD_PERCENT`
+  - Purpose: average CPU threshold for a likely performance-risk mismatch finding
+  - Where to get it: set locally; `85` is the current default
+- `FINDING_IDLE_NETWORK_AVERAGE_BYTES`
+  - Purpose: combined average NetworkIn/NetworkOut threshold used alongside CPU for idle EC2 detection
+  - Where to get it: set locally; `1000000` is the current default
 - `ENVIRONMENT`
   - Purpose: runtime environment selector for local development vs later deployment behavior
   - Where to get it: set manually, usually `development` for local work
@@ -498,12 +539,29 @@ non-applicable values so mixed resource types read as intentional.
   - Stage 4 should replace the current frontend-only findings cards with stored backend findings and evidence-backed detection rules.
   - Cost Explorer messaging may need refinement because the current warning still mentions the initial 24-hour warm-up pattern even when AWS simply returns no usable spend yet.
 
+### 2026-07-05 - Stage 4 findings foundation
+- What changed:
+  - Added a new `findings` table plus FastAPI `/findings` endpoint for org-scoped waste/risk results.
+  - Added sync-time detection rules for idle EC2 instances, underutilized EC2 instances, sustained high-CPU EC2 mismatches, unattached EBS volumes, and unassociated Elastic IPs.
+  - Added a dashboard findings evidence panel fed from stored backend findings instead of only frontend heuristics.
+  - Added finding-related environment settings for sample-count and CPU/network thresholds.
+- Why:
+  - Stage 4 requires persisted findings with evidence, not only visual hints inferred in React from the current resource list.
+- Files touched:
+  - Backend models, migration, findings API/service, sync service, frontend dashboard, Vite proxy, docs, and project memory.
+- Manual test performed:
+  - Backend compile pass completed successfully with `compileall`.
+- Anything the next session needs to know:
+  - Manual DB migration and browser validation are still required for this first Stage 4 pass.
+  - The current findings rules are intentionally limited to the metrics and inventory already collected in Stage 2.
+
 ## 8. Manual Test Checklist Status
 
 - Stage 0: base Docker/frontend flow confirmed during local setup; AWS setup still being completed separately for Stage 2 readiness
 - Stage 1: passed on 2026-06-29
 - Stage 2: partially verified on 2026-07-01; resource inventory and metrics confirmed, waiting on Cost Explorer readiness for full gate coverage
 - Stage 3: passed for multitenant dashboard, real inventory sync, viewer/admin separation, demo seeding behavior, and mixed-resource inventory handling; spend charts remain dependent on AWS Cost Explorer data availability
+- Stage 4: first code pass landed on 2026-07-05; backend compile passed, manual migration and UI verification still pending
 - Multitenancy pivot: landed; org-scoped auth, AWS connections, sync data, teammate creation, and dashboard views are implemented
 
 ## 9. AWS Account / Sandbox Notes

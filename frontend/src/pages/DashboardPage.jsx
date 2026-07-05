@@ -18,6 +18,13 @@ import { extractApiError } from "../api/errors";
 import { useAuth } from "../components/AuthProvider";
 
 const chartPalette = ["#4f46e5", "#8792fe", "#7d42b6", "#4953bc", "#c3c0ff", "#3525cd"];
+const findingTitleMap = {
+  idle_instance: "Idle compute candidate",
+  underutilized_instance: "Underutilized compute",
+  oversized_mismatch: "Performance mismatch",
+  unattached_volume: "Unattached storage volume",
+  unused_elastic_ip: "Unassociated Elastic IP",
+};
 
 function formatCurrency(amount, currency = "USD") {
   return new Intl.NumberFormat("en-US", {
@@ -32,6 +39,63 @@ function formatPercent(value) {
     return "n/a";
   }
   return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
+}
+
+function formatFindingTypeLabel(value) {
+  return findingTitleMap[value] ?? value.replaceAll("_", " ");
+}
+
+function formatTimeAgo(value) {
+  if (!value) {
+    return "now";
+  }
+
+  const then = new Date(value).getTime();
+  const diffMinutes = Math.max(0, Math.round((Date.now() - then) / 60000));
+  if (diffMinutes < 1) {
+    return "now";
+  }
+  if (diffMinutes < 60) {
+    return `${diffMinutes} min ago`;
+  }
+  const diffHours = Math.round(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours}h ago`;
+  }
+  return `${Math.round(diffHours / 24)}d ago`;
+}
+
+function summarizeFindingImpact(finding) {
+  const evidence = finding.evidence ?? {};
+  if (finding.finding_type === "idle_instance") {
+    return `Avg CPU ${evidence.avg_cpu_percent ?? "?"}% over ${evidence.window_hours ?? "?"}h`;
+  }
+  if (finding.finding_type === "underutilized_instance") {
+    return `Avg CPU ${evidence.avg_cpu_percent ?? "?"}% suggests rightsizing review`;
+  }
+  if (finding.finding_type === "oversized_mismatch") {
+    return `Avg CPU ${evidence.avg_cpu_percent ?? "?"}% indicates sustained pressure`;
+  }
+  if (finding.finding_type === "unattached_volume") {
+    return "Volume is available with no active attachments";
+  }
+  if (finding.finding_type === "unused_elastic_ip") {
+    return "Allocated IP is not associated with a running instance";
+  }
+  return "Evidence-backed detection ready for review";
+}
+
+function formatEvidenceValue(value) {
+  if (typeof value === "number") {
+    return Number.isInteger(value) ? String(value) : value.toFixed(2);
+  }
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+  if (value === null || value === undefined || value === "") {
+    return "-";
+  }
+  return String(value);
 }
 
 function buildDefaultDateRange() {
@@ -298,18 +362,24 @@ function ResourceTable({ data, loading }) {
   );
 }
 
-function FindingsFeed({ findings, isSimulatedWorkspace }) {
+function FindingsFeed({ findings, loading, isSimulatedWorkspace }) {
+  const visibleFindings = findings.slice(0, 3);
+
   return (
-    <article className="info-card feed-card" id="findings">
+    <article className="info-card feed-card">
       <div className="chart-header">
         <div className="chart-title">
           <h2>Live findings</h2>
           <p>{isSimulatedWorkspace ? "Demo-derived findings for presentation mode." : "Signals inferred from current synced resources."}</p>
         </div>
       </div>
+      {loading ? <p>Loading findings...</p> : null}
+      {!loading && visibleFindings.length === 0 ? (
+        <EmptyState title="No active findings" description="Current synced data has not produced an open waste or risk finding yet." />
+      ) : null}
       <div className="feed-list">
-        {findings.map((finding) => (
-          <div className={`finding-card ${finding.severity}`} key={finding.title}>
+        {visibleFindings.map((finding) => (
+          <div className={`finding-card ${finding.severity}`} key={finding.id ?? `${finding.title}-${finding.resource}`}>
             <div className="finding-icon">{finding.icon}</div>
             <div>
               <div className="finding-header">
@@ -330,9 +400,75 @@ function FindingsFeed({ findings, isSimulatedWorkspace }) {
         <p>
           {isSimulatedWorkspace
             ? "This workspace is showing simulated cost and utilization data so you can demo the full dashboard before AWS billing data is ready."
-            : "Sync again after Cost Explorer warms up to enrich service-level spend analysis and improve prioritization."}
+            : visibleFindings.length > 0
+              ? "These findings are now backed by stored evidence from the latest organization sync."
+              : "Sync again after Cost Explorer warms up to enrich service-level spend analysis and improve prioritization."}
         </p>
       </div>
+    </article>
+  );
+}
+
+function FindingsWorkbench({ findings, loading, error }) {
+  const [expandedId, setExpandedId] = useState(null);
+
+  return (
+    <article className="info-card full-span-card" id="findings">
+      <div className="chart-header">
+        <div className="chart-title">
+          <h2>Waste & risks</h2>
+          <p>Stored findings with evidence from the latest organization-scoped detection pass.</p>
+        </div>
+        <div className="chip-row">
+          <span className="chip info">{findings.length} open findings</span>
+        </div>
+      </div>
+      {loading ? <p>Loading findings...</p> : null}
+      {error ? <p className="form-error">{error}</p> : null}
+      {!loading && !error && findings.length === 0 ? (
+        <EmptyState
+          title="No open findings"
+          description="That is a good result right now. Run sync again after adding more AWS activity if you want to test the detector further."
+        />
+      ) : null}
+      {!loading && !error && findings.length > 0 ? (
+        <div className="findings-workbench">
+          {findings.map((finding) => {
+            const isExpanded = expandedId === finding.id;
+            const evidenceEntries = Object.entries(finding.evidence ?? {});
+
+            return (
+              <div className={`finding-row ${finding.severity}`} key={finding.id}>
+                <button
+                  className="finding-row-toggle"
+                  type="button"
+                  onClick={() => setExpandedId(isExpanded ? null : finding.id)}
+                >
+                  <div className="finding-row-main">
+                    <span className={`chip ${finding.severity}`}>{finding.severity.toUpperCase()}</span>
+                    <strong>{formatFindingTypeLabel(finding.finding_type)}</strong>
+                    <span className="finding-resource">{finding.resource_type} / {finding.resource_id}</span>
+                  </div>
+                  <div className="finding-row-side">
+                    <span className="finding-meta">{formatTimeAgo(finding.detected_at)}</span>
+                    <span className="finding-expand">{isExpanded ? "Hide evidence" : "Show evidence"}</span>
+                  </div>
+                </button>
+                {isExpanded ? (
+                  <div className="finding-evidence">
+                    {evidenceEntries.map(([key, value]) => (
+                      <div className="evidence-item" key={key}>
+                        <p>{key.replaceAll("_", " ")}</p>
+                        <strong>{formatEvidenceValue(value)}</strong>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -422,6 +558,10 @@ function OperationsPanel({
               <div>
                 <dt>Metric samples</dt>
                 <dd>{syncState.summary.metric_samples_synced}</dd>
+              </div>
+              <div>
+                <dt>Findings</dt>
+                <dd>{syncState.summary.findings_detected}</dd>
               </div>
               <div>
                 <dt>Warnings</dt>
@@ -531,6 +671,11 @@ export default function DashboardPage() {
     trend: [],
     resources: [],
   });
+  const [findingsState, setFindingsState] = useState({
+    loading: true,
+    error: "",
+    items: [],
+  });
   const [organizationContext, setOrganizationContext] = useState({
     loading: true,
     data: null,
@@ -574,6 +719,7 @@ export default function DashboardPage() {
 
     async function loadDashboard() {
       setDashboard((current) => ({ ...current, loading: true, error: "" }));
+      setFindingsState((current) => ({ ...current, loading: true, error: "" }));
 
       const params = new URLSearchParams({
         start: dateRange.start,
@@ -594,6 +740,7 @@ export default function DashboardPage() {
           regionResponse,
           trendResponse,
           resourceResponse,
+          findingsResponse,
         ] = await Promise.all([
           apiFetch("/auth/me"),
           apiFetch("/organization/me"),
@@ -602,6 +749,7 @@ export default function DashboardPage() {
           apiFetch(`/dashboard/by-region?${params.toString()}`),
           apiFetch(`/dashboard/trend?${trendParams.toString()}`),
           apiFetch("/dashboard/resources"),
+          apiFetch("/findings"),
         ]);
 
         const [
@@ -612,6 +760,7 @@ export default function DashboardPage() {
           regionData,
           trendData,
           resourceData,
+          findingsData,
         ] = await Promise.all([
           meResponse.json(),
           organizationResponse.json(),
@@ -620,6 +769,7 @@ export default function DashboardPage() {
           regionResponse.json(),
           trendResponse.json(),
           resourceResponse.json(),
+          findingsResponse.json(),
         ]);
 
         if (!cancelled) {
@@ -644,6 +794,11 @@ export default function DashboardPage() {
             trend: trendResponse.ok ? trendData : [],
             resources: resourceResponse.ok ? resourceData : [],
           });
+          setFindingsState({
+            loading: false,
+            error: findingsResponse.ok ? "" : extractApiError(findingsData, "Failed to load findings"),
+            items: findingsResponse.ok ? findingsData : [],
+          });
         }
       } catch (error) {
         if (!cancelled) {
@@ -653,6 +808,11 @@ export default function DashboardPage() {
             loading: false,
             error: message,
           }));
+          setFindingsState({
+            loading: false,
+            error: message,
+            items: [],
+          });
         }
       }
     }
@@ -838,71 +998,22 @@ export default function DashboardPage() {
   }, [dashboard.resources]);
 
   const findings = useMemo(() => {
-    const ec2Resources = dashboard.resources.filter((resource) => resource.resource_type === "ec2_instance");
-    const ebsResources = dashboard.resources.filter((resource) => resource.resource_type === "ebs_volume");
-    const lambdaResources = dashboard.resources.filter((resource) => resource.resource_type === "lambda_function");
-    const prioritizedRows = [
-      ...ec2Resources.slice(0, 1),
-      ...ebsResources.slice(0, 1),
-      ...lambdaResources.slice(0, 1),
-    ];
-    const resourceRows = prioritizedRows.length > 0 ? prioritizedRows : dashboard.resources.slice(0, 3);
-
-    if (resourceRows.length === 0) {
-      return [
-        {
-          title: "Waiting for resource sync",
-          resource: "No resource inventory yet",
-          severity: "info",
-          icon: "i",
-          timeAgo: "now",
-          impact: "Run sync or load demo data",
-        },
-      ];
-    }
-
-    return resourceRows.map((resource, index) => {
-      const cpu = resource.latest_cpu_utilization ?? 0;
-      if (index === 0) {
-        return {
-          title: cpu < 20 ? "Idle compute candidate" : "Compute review recommended",
-          resource: `ID: ${resource.resource_id}`,
-          severity: cpu < 12 ? "critical" : "warning",
-          icon: cpu < 12 ? "!" : "~",
-          timeAgo: `${2 + index * 5} min ago`,
-          impact: cpu < 12 ? "Potential waste from low utilization" : "Usage trend worth reviewing",
-        };
-      }
-      if (index === 1) {
-        return {
-          title: "Storage density check",
-          resource: `ID: ${resource.resource_id}`,
-          severity: "warning",
-          icon: "s",
-          timeAgo: `${2 + index * 5} min ago`,
-          impact: "Inventory present, cost attribution pending",
-        };
-      }
-      if (resource.resource_type === "lambda_function") {
-        return {
-          title: "Lambda activity captured",
-          resource: `ID: ${resource.resource_id}`,
-          severity: "info",
-          icon: "l",
-          timeAgo: `${2 + index * 5} min ago`,
-          impact: "Function inventory is now visible in this workspace",
-        };
-      }
-      return {
-        title: "Regional footprint captured",
-        resource: `ID: ${resource.resource_id}`,
-        severity: "info",
-        icon: "r",
-        timeAgo: `${2 + index * 5} min ago`,
-        impact: "Resource is visible in workspace inventory",
-      };
-    });
-  }, [dashboard.resources]);
+    return findingsState.items.map((finding) => ({
+      ...finding,
+      title: formatFindingTypeLabel(finding.finding_type),
+      resource: `ID: ${finding.resource_id}`,
+      icon:
+        finding.finding_type === "unattached_volume"
+          ? "s"
+          : finding.finding_type === "unused_elastic_ip"
+            ? "@"
+            : finding.finding_type === "oversized_mismatch"
+              ? "!"
+              : "~",
+      timeAgo: formatTimeAgo(finding.detected_at),
+      impact: summarizeFindingImpact(finding),
+    }));
+  }, [findingsState.items]);
 
   const systemStats = useMemo(() => {
     const utilization = derivedStats.avgCpu ?? 0;
@@ -948,7 +1059,7 @@ export default function DashboardPage() {
           <div className="sidebar-section-label">Analytics</div>
           <a className="sidebar-link" href="#findings">
             <span className="sidebar-icon">!</span>
-            <span>Findings</span>
+            <span>Waste & Risks</span>
           </a>
           <a className="sidebar-link" href="#forecast">
             <span className="sidebar-icon">+</span>
@@ -1028,7 +1139,7 @@ export default function DashboardPage() {
               granularity={granularity}
               onGranularityChange={setGranularity}
             />
-            <FindingsFeed findings={findings} isSimulatedWorkspace={isSimulatedWorkspace} />
+            <FindingsFeed findings={findings} loading={findingsState.loading} isSimulatedWorkspace={isSimulatedWorkspace} />
             <CostBreakdownChart
               title="Cost by service"
               subtitle="Top spend buckets in the selected window."
@@ -1064,6 +1175,8 @@ export default function DashboardPage() {
                 ))}
               </div>
             </article>
+
+            <FindingsWorkbench findings={findingsState.items} loading={findingsState.loading} error={findingsState.error} />
 
             <ResourceTable data={dashboard.resources} loading={dashboard.loading} />
 

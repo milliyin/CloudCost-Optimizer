@@ -34,6 +34,7 @@ The project currently includes:
 - Stage 2 ingestion foundations with AWS client factories, sync orchestration, scheduler wiring, and an admin-only `/sync/run` endpoint
 - Multi-tenant foundations with organization-owned users, organization-specific AWS connections, and tenant-scoped synced data
 - Stage 3 interactive dashboard with org-scoped spend summary, cost charts, trend view, findings, resource inventory, admin sync controls, and opt-in demo seed loading
+- Stage 4 initial findings pipeline with stored waste/risk detections, evidence-backed rules, and a dashboard evidence panel
 
 Current session behavior:
 
@@ -64,3 +65,4 @@ AWS sync notes:
 - Cost Explorer can take about 24 hours after first enablement to begin returning data
 - The sync layer is designed to keep resource inventory and CloudWatch ingestion working even when Cost Explorer data is still unavailable
 - Non-EC2 resources intentionally appear as inventory-only rows in the dashboard; only EC2 rows currently show CPU and network telemetry columns
+- Findings are recalculated as part of each sync and currently cover idle EC2 instances, underutilized EC2 instances, sustained high-CPU EC2 mismatches, unattached EBS volumes, and unassociated Elastic IPs

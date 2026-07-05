@@ -23,6 +23,10 @@ export default defineConfig({
         target: "http://backend:8000",
         changeOrigin: true,
       },
+      "/findings": {
+        target: "http://backend:8000",
+        changeOrigin: true,
+      },
       "/sync": {
         target: "http://backend:8000",
         changeOrigin: true,
