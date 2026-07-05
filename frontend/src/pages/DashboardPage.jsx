@@ -25,6 +25,14 @@ const findingTitleMap = {
   unattached_volume: "Unattached storage volume",
   unused_elastic_ip: "Unassociated Elastic IP",
 };
+const findingTypeOptions = [
+  { value: "all", label: "All types" },
+  { value: "idle_instance", label: "Idle compute" },
+  { value: "underutilized_instance", label: "Underutilized compute" },
+  { value: "oversized_mismatch", label: "Performance mismatch" },
+  { value: "unattached_volume", label: "Unattached volume" },
+  { value: "unused_elastic_ip", label: "Unused Elastic IP" },
+];
 
 function formatCurrency(amount, currency = "USD") {
   return new Intl.NumberFormat("en-US", {
@@ -414,6 +422,21 @@ function FindingsFeed({ findings, loading, isSimulatedWorkspace }) {
 
 function FindingsWorkbench({ findings, loading, error }) {
   const [expandedId, setExpandedId] = useState(null);
+  const [statusFilter, setStatusFilter] = useState("open");
+  const [severityFilter, setSeverityFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
+
+  const filteredFindings = useMemo(() => {
+    return findings.filter((finding) => {
+      const statusMatch = statusFilter === "all" ? true : finding.status === statusFilter;
+      const severityMatch = severityFilter === "all" ? true : finding.severity === severityFilter;
+      const typeMatch = typeFilter === "all" ? true : finding.finding_type === typeFilter;
+      return statusMatch && severityMatch && typeMatch;
+    });
+  }, [findings, severityFilter, statusFilter, typeFilter]);
+
+  const openCount = findings.filter((finding) => finding.status === "open").length;
+  const resolvedCount = findings.filter((finding) => finding.status === "resolved").length;
 
   return (
     <article className="info-card full-span-card" id="findings">
@@ -423,25 +446,72 @@ function FindingsWorkbench({ findings, loading, error }) {
           <p>Stored findings with evidence from the latest organization-scoped detection pass.</p>
         </div>
         <div className="chip-row">
-          <span className="chip info">{findings.length} open findings</span>
+          <span className="chip info">{openCount} open</span>
+          <span className="chip good">{resolvedCount} resolved</span>
+        </div>
+      </div>
+      <div className="findings-toolbar">
+        <div className="segmented-control">
+          <button
+            className={`segmented-pill ${statusFilter === "open" ? "active" : ""}`}
+            type="button"
+            onClick={() => setStatusFilter("open")}
+          >
+            Open
+          </button>
+          <button
+            className={`segmented-pill ${statusFilter === "resolved" ? "active" : ""}`}
+            type="button"
+            onClick={() => setStatusFilter("resolved")}
+          >
+            Resolved
+          </button>
+          <button
+            className={`segmented-pill ${statusFilter === "all" ? "active" : ""}`}
+            type="button"
+            onClick={() => setStatusFilter("all")}
+          >
+            All
+          </button>
+        </div>
+        <div className="findings-filter-row">
+          <label className="resource-select-shell">
+            <span className="resource-select-label">Severity</span>
+            <select value={severityFilter} onChange={(event) => setSeverityFilter(event.target.value)}>
+              <option value="all">All severities</option>
+              <option value="critical">Critical</option>
+              <option value="warning">Warning</option>
+              <option value="info">Info</option>
+            </select>
+          </label>
+          <label className="resource-select-shell">
+            <span className="resource-select-label">Type</span>
+            <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
+              {findingTypeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
       </div>
       {loading ? <p>Loading findings...</p> : null}
       {error ? <p className="form-error">{error}</p> : null}
-      {!loading && !error && findings.length === 0 ? (
+      {!loading && !error && filteredFindings.length === 0 ? (
         <EmptyState
-          title="No open findings"
-          description="That is a good result right now. Run sync again after adding more AWS activity if you want to test the detector further."
+          title={statusFilter === "resolved" ? "No resolved findings" : "No matching findings"}
+          description="Try another filter combination or run sync again after changing AWS resources to generate more findings."
         />
       ) : null}
-      {!loading && !error && findings.length > 0 ? (
+      {!loading && !error && filteredFindings.length > 0 ? (
         <div className="findings-workbench">
-          {findings.map((finding) => {
+          {filteredFindings.map((finding) => {
             const isExpanded = expandedId === finding.id;
             const evidenceEntries = Object.entries(finding.evidence ?? {});
 
             return (
-              <div className={`finding-row ${finding.severity}`} key={finding.id}>
+              <div className={`finding-row ${finding.severity} ${finding.status === "resolved" ? "resolved" : ""}`} key={finding.id}>
                 <button
                   className="finding-row-toggle"
                   type="button"
@@ -449,6 +519,7 @@ function FindingsWorkbench({ findings, loading, error }) {
                 >
                   <div className="finding-row-main">
                     <span className={`chip ${finding.severity}`}>{finding.severity.toUpperCase()}</span>
+                    <span className={`chip ${finding.status === "resolved" ? "good" : "info"}`}>{finding.status}</span>
                     <strong>{formatFindingTypeLabel(finding.finding_type)}</strong>
                     <span className="finding-resource">{finding.resource_type} / {finding.resource_id}</span>
                   </div>
@@ -752,7 +823,7 @@ export default function DashboardPage() {
           apiFetch(`/dashboard/by-region?${params.toString()}`),
           apiFetch(`/dashboard/trend?${trendParams.toString()}`),
           apiFetch("/dashboard/resources"),
-          apiFetch("/findings"),
+          apiFetch("/findings?status=all"),
         ]);
 
         const [
@@ -1018,6 +1089,11 @@ export default function DashboardPage() {
     }));
   }, [findingsState.items]);
 
+  const openFindings = useMemo(
+    () => findings.filter((finding) => finding.status === "open"),
+    [findings]
+  );
+
   const systemStats = useMemo(() => {
     const utilization = derivedStats.avgCpu ?? 0;
     return [
@@ -1142,7 +1218,7 @@ export default function DashboardPage() {
               granularity={granularity}
               onGranularityChange={setGranularity}
             />
-            <FindingsFeed findings={findings} loading={findingsState.loading} isSimulatedWorkspace={isSimulatedWorkspace} />
+            <FindingsFeed findings={openFindings} loading={findingsState.loading} isSimulatedWorkspace={isSimulatedWorkspace} />
             <CostBreakdownChart
               title="Cost by service"
               subtitle="Top spend buckets in the selected window."

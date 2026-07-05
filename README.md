@@ -67,3 +67,4 @@ AWS sync notes:
 - Non-EC2 resources intentionally appear as inventory-only rows in the dashboard; only EC2 rows currently show CPU and network telemetry columns
 - Findings are recalculated as part of each sync and currently cover idle EC2 instances, underutilized EC2 instances, sustained high-CPU EC2 mismatches, unattached EBS volumes, and unassociated Elastic IPs
 - Idle EC2 findings now include both the long sync window and a short recent comparison window, with plain-English evidence text explaining whether recent CPU stayed low, rose briefly, or had no recent samples
+- The findings workbench now supports status, severity, and type filters plus a resolved-history view before Stage 5 recommendations begin

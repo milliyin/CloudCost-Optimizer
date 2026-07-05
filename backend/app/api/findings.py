@@ -18,7 +18,7 @@ async def read_findings(
     db: Annotated[AsyncSession, Depends(get_db_session)],
     finding_type: str | None = Query(default=None),
     severity: str | None = Query(default=None),
-    status: str | None = Query(default="open"),
+    status: str | None = Query(default="all"),
 ) -> list[FindingResponse]:
     return await list_findings(
         db,

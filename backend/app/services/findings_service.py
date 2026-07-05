@@ -292,7 +292,7 @@ async def list_findings(
         query = query.where(Finding.finding_type == finding_type)
     if severity:
         query = query.where(Finding.severity == severity)
-    if status:
+    if status and status != "all":
         query = query.where(Finding.status == status)
 
     findings = (

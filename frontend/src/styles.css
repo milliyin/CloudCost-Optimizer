@@ -766,6 +766,21 @@ p {
   margin-bottom: 8px;
 }
 
+.findings-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.findings-filter-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .findings-workbench {
   display: grid;
   gap: 12px;
@@ -788,6 +803,10 @@ p {
 
 .finding-row.info {
   border-color: rgba(37, 99, 235, 0.18);
+}
+
+.finding-row.resolved {
+  background: linear-gradient(180deg, rgba(22, 163, 74, 0.03) 0%, rgba(255, 255, 255, 1) 55%);
 }
 
 .finding-row-toggle {
@@ -1132,6 +1151,11 @@ p {
 
   .finding-evidence {
     grid-template-columns: 1fr;
+  }
+
+  .findings-toolbar,
+  .findings-filter-row {
+    width: 100%;
   }
 
   .dashboard-topbar-tools,

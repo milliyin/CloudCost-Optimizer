@@ -26,7 +26,7 @@ resources.
   - Stage 3 dashboard queries and UI are working with org-scoped data, including opt-in demo seeding, real-sync cleanup behavior, and role-aware admin controls.
   - Cost charts may legitimately be empty until Cost Explorer data becomes available for the organization's AWS account or the date range includes billable usage.
   - Resource inventory intentionally mixes inventory-only rows with EC2 metric-backed rows, so the table now labels telemetry availability instead of showing repeated `n/a` values for non-EC2 resources.
-  - Stage 4 findings are now being moved into a real backend `findings` table and API, but the frontend and migration still need full end-to-end manual validation after this first implementation pass.
+  - Stage 4 now includes stored findings, evidence panels, filters, and resolved-history support; the next major milestone is Stage 5 recommendations and approval workflows.
 
 ## 3. Architecture Summary
 
@@ -564,6 +564,20 @@ idle threshold, so the result does not show an empty note field.
 - Anything the next session needs to know:
   - Manual DB migration and browser validation are still required for this first Stage 4 pass.
   - The current findings rules are intentionally limited to the metrics and inventory already collected in Stage 2.
+
+### 2026-07-05 - Stage 4 findings usability polish
+- What changed:
+  - Added plain-English recent-window notes for idle EC2 findings so short stress-test spikes are explained clearly.
+  - Added findings filters for status, severity, and type.
+  - Added a resolved-history view while keeping the smaller live-findings card focused on open results only.
+- Why:
+  - Finish the inspection and triage workflow before starting Stage 5 recommendation actions.
+- Files touched:
+  - Findings API/service behavior, frontend findings workbench, styles, docs, and project memory.
+- Manual test performed:
+  - Browser verification confirmed the idle finding note now explains a recent 2-hour CPU average staying below the 10% idle threshold.
+- Anything the next session needs to know:
+  - Stage 5 can now build on top of a findings UI that already supports open vs resolved review.
 
 ## 8. Manual Test Checklist Status
 

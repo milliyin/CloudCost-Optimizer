@@ -110,3 +110,10 @@ main decision anchored to the stable long window while still explaining why a
 resource can remain "idle" after a short-lived spike. The evidence text is
 always rendered in plain English now, even when the recent window remains below
 threshold, so the result reads as explained rather than blank.
+
+## 2026-07-05 - Finish Stage 4 usability before opening Stage 5 workflows
+
+Before layering recommendations on top, the findings surface itself needed to
+support review at realistic scale. We therefore added status, severity, and
+type filters plus a resolved-history view first, so Stage 5 can build on an
+inspection UI that already supports triage and lifecycle review.
