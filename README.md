@@ -43,6 +43,9 @@ Current session behavior:
 - Per-organization AWS credentials are encrypted before storage on the backend
 - Admins can create same-organization teammates directly from the dashboard
 - Real sync clears any demo-seeded workspace rows before loading live AWS data
+- The dashboard now includes an in-app AWS connection guide so admins know how to create the IAM user, generate keys, choose a region, and run the first sync
+- The AWS guide also includes the copy-pasteable IAM policy JSON needed for the app's current read-only sync scope
+- The dashboard navigation now follows the actual page section order and highlights the active section while scrolling
 
 Current inventory coverage includes:
 

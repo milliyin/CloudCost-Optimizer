@@ -117,3 +117,21 @@ Before layering recommendations on top, the findings surface itself needed to
 support review at realistic scale. We therefore added status, severity, and
 type filters plus a resolved-history view first, so Stage 5 can build on an
 inspection UI that already supports triage and lifecycle review.
+
+## 2026-07-05 - AWS credential onboarding needs to live inside the product
+
+Even though the app already supported organization-specific AWS connections,
+the setup knowledge still lived mostly in chat and memory. We added an in-app
+AWS connection guide in the operations area so a new admin can complete IAM
+setup, generate the access key, choose the right region, and run the first
+sync without outside hand-holding. The guide now also carries the current
+customer-managed policy JSON so users do not need to reconstruct permissions
+from scattered notes.
+
+## 2026-07-05 - Sidebar navigation must match the real page structure
+
+The dashboard started to accumulate enough sections that a static highlighted
+"Overview" link became misleading. We therefore aligned the page section order
+with the sidebar order and made the top title and active nav state follow the
+actual section in view while scrolling. The standalone Connect AWS section was
+also moved into that same ordered structure so the navigation feels coherent.

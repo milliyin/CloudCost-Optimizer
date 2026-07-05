@@ -25,6 +25,14 @@ const findingTitleMap = {
   unattached_volume: "Unattached storage volume",
   unused_elastic_ip: "Unassociated Elastic IP",
 };
+const navigationSections = [
+  { id: "overview", label: "Overview" },
+  { id: "inventory", label: "Resource Inventory" },
+  { id: "connect-aws", label: "Connect AWS" },
+  { id: "operations", label: "Sync Status" },
+  { id: "findings", label: "Waste & Risks" },
+  { id: "forecast", label: "Cost Forecast" },
+];
 const findingTypeOptions = [
   { value: "all", label: "All types" },
   { value: "idle_instance", label: "Idle compute" },
@@ -547,6 +555,105 @@ function FindingsWorkbench({ findings, loading, error }) {
   );
 }
 
+function AwsSetupGuide() {
+  const policyJson = `{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CloudCostReadOnly",
+      "Effect": "Allow",
+      "Action": [
+        "ce:GetCostAndUsage",
+        "ce:GetCostForecast",
+        "cloudwatch:GetMetricData",
+        "ec2:DescribeInstances",
+        "ec2:DescribeVolumes",
+        "ec2:DescribeAddresses",
+        "rds:DescribeDBInstances",
+        "elasticloadbalancing:DescribeLoadBalancers",
+        "lambda:ListFunctions",
+        "s3:ListAllMyBuckets",
+        "s3:GetBucketLocation",
+        "dynamodb:ListTables",
+        "dynamodb:DescribeTable",
+        "sqs:ListQueues",
+        "sqs:GetQueueAttributes",
+        "sns:ListTopics",
+        "ecs:ListClusters",
+        "ecs:DescribeClusters",
+        "ecs:ListServices",
+        "ecs:DescribeServices",
+        "ecr:DescribeRepositories",
+        "apigateway:GET"
+      ],
+      "Resource": "*"
+    }
+  ]
+}`;
+
+  return (
+    <article className="info-card full-span-card aws-guide-section" id="connect-aws">
+      <div className="chart-header">
+        <div className="chart-title">
+          <h2>Connect AWS guide</h2>
+          <p>
+            Create a read-only IAM user for this organization, attach the policy, generate the access key, then save the
+            connection in the dashboard.
+          </p>
+        </div>
+      </div>
+      <ol className="setup-steps">
+        <li>
+          In AWS, open <strong>IAM</strong> and create a user such as <code>cloudcost-app</code>.
+        </li>
+        <li>
+          Attach the app&apos;s read-only policy so the user can read Cost Explorer, CloudWatch, EC2, EBS, Lambda, S3,
+          RDS, and the other inventory services we support.
+        </li>
+        <li>
+          Create an <strong>access key</strong> for that IAM user and copy the <code>Access key ID</code> and
+          <code> Secret access key</code>.
+        </li>
+        <li>
+          Choose the AWS <strong>region</strong> where this organization&apos;s resources live most often, such as
+          <code> us-east-1</code>.
+        </li>
+        <li>
+          Paste those values into the form on the right and click <strong>Save AWS connection</strong>.
+        </li>
+        <li>
+          After saving, click <strong>Run sync now</strong> to pull inventory, metrics, and findings for this
+          organization only.
+        </li>
+      </ol>
+      <div className="guide-callout">
+        <strong>What the app stores</strong>
+        <p>
+          The credentials are saved per organization workspace and encrypted on the backend, so each client connects only
+          to its own AWS account.
+        </p>
+      </div>
+      <div className="guide-callout">
+        <strong>What to expect first</strong>
+        <p>
+          Inventory and CloudWatch metrics often appear before Cost Explorer spend data. Spend charts can stay empty
+          until AWS billing data is ready.
+        </p>
+      </div>
+      <details className="policy-shell">
+        <summary>Show IAM policy JSON</summary>
+        <p className="inline-note">
+          Create a customer-managed policy in AWS IAM, paste this JSON, attach it to the app user, then create the
+          access key for that user.
+        </p>
+        <pre className="policy-code">
+          <code>{policyJson}</code>
+        </pre>
+      </details>
+    </article>
+  );
+}
+
 function OperationsPanel({
   auth,
   organizationContext,
@@ -686,7 +793,6 @@ function OperationsPanel({
             </button>
           </form>
         </section>
-
         <section className="operations-block">
           <h3>Create teammate</h3>
           <form className="auth-form compact-form" onSubmit={handleTeammateCreate}>
@@ -733,6 +839,7 @@ function OperationsPanel({
 
 export default function DashboardPage() {
   const auth = useAuth();
+  const [activeSection, setActiveSection] = useState("overview");
   const [dateRange, setDateRange] = useState(buildDefaultDateRange);
   const [granularity, setGranularity] = useState("daily");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -897,6 +1004,42 @@ export default function DashboardPage() {
       cancelled = true;
     };
   }, [dateRange.end, dateRange.start, granularity, refreshKey]);
+
+  useEffect(() => {
+    const sectionEntries = navigationSections
+      .map((section) => {
+        const element = document.getElementById(section.id);
+        return element ? { ...section, element } : null;
+      })
+      .filter(Boolean)
+      .sort((left, right) => left.element.offsetTop - right.element.offsetTop);
+
+    if (sectionEntries.length === 0) {
+      return undefined;
+    }
+
+    function updateActiveSection() {
+      const offset = 120;
+      let currentId = sectionEntries[0].id;
+
+      for (const section of sectionEntries) {
+        if (section.element.offsetTop - offset <= window.scrollY) {
+          currentId = section.id;
+        }
+      }
+
+      setActiveSection(currentId);
+    }
+
+    updateActiveSection();
+    window.addEventListener("scroll", updateActiveSection, { passive: true });
+    window.addEventListener("hashchange", updateActiveSection);
+
+    return () => {
+      window.removeEventListener("scroll", updateActiveSection);
+      window.removeEventListener("hashchange", updateActiveSection);
+    };
+  }, [dashboard.loading, findingsState.loading, organizationContext.loading]);
 
   async function handleConnectionSave(event) {
     event.preventDefault();
@@ -1107,6 +1250,7 @@ export default function DashboardPage() {
   const initials = (auth.user?.email ?? "CI")
     .slice(0, 2)
     .toUpperCase();
+  const activeSectionLabel = navigationSections.find((section) => section.id === activeSection)?.label ?? "Overview";
 
   return (
     <div className="dashboard-app">
@@ -1116,7 +1260,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="sidebar-section">
-          <a className="sidebar-link active" href="#overview">
+          <a className={`sidebar-link ${activeSection === "overview" ? "active" : ""}`} href="#overview">
             <span className="sidebar-icon">[]</span>
             <span>Overview</span>
           </a>
@@ -1124,11 +1268,15 @@ export default function DashboardPage() {
 
         <div className="sidebar-section">
           <div className="sidebar-section-label">Resources</div>
-          <a className="sidebar-link" href="#inventory">
+          <a className={`sidebar-link ${activeSection === "inventory" ? "active" : ""}`} href="#inventory">
             <span className="sidebar-icon">#</span>
             <span>Resource Inventory</span>
           </a>
-          <a className="sidebar-link" href="#operations">
+          <a className={`sidebar-link ${activeSection === "connect-aws" ? "active" : ""}`} href="#connect-aws">
+            <span className="sidebar-icon">*</span>
+            <span>Connect AWS</span>
+          </a>
+          <a className={`sidebar-link ${activeSection === "operations" ? "active" : ""}`} href="#operations">
             <span className="sidebar-icon">@</span>
             <span>Sync Status</span>
           </a>
@@ -1136,11 +1284,11 @@ export default function DashboardPage() {
 
         <div className="sidebar-section">
           <div className="sidebar-section-label">Analytics</div>
-          <a className="sidebar-link" href="#findings">
+          <a className={`sidebar-link ${activeSection === "findings" ? "active" : ""}`} href="#findings">
             <span className="sidebar-icon">!</span>
             <span>Waste & Risks</span>
           </a>
-          <a className="sidebar-link" href="#forecast">
+          <a className={`sidebar-link ${activeSection === "forecast" ? "active" : ""}`} href="#forecast">
             <span className="sidebar-icon">+</span>
             <span>Cost Forecast</span>
           </a>
@@ -1162,7 +1310,7 @@ export default function DashboardPage() {
 
       <div className="dashboard-main">
         <header className="dashboard-topbar">
-          <h1>Overview</h1>
+          <h1>{activeSectionLabel}</h1>
           <div className="dashboard-topbar-tools">
             <span className="topbar-org">{auth.user?.organization?.name ?? "workspace"}</span>
           </div>
@@ -1232,6 +1380,32 @@ export default function DashboardPage() {
               loading={dashboard.loading}
             />
 
+            <ResourceTable data={dashboard.resources} loading={dashboard.loading} />
+
+            <AwsSetupGuide />
+
+            {auth.user?.role === "admin" ? (
+              <OperationsPanel
+                auth={auth}
+                organizationContext={organizationContext}
+                connectionForm={connectionForm}
+                connectionState={connectionState}
+                setConnectionForm={setConnectionForm}
+                handleConnectionSave={handleConnectionSave}
+                syncState={syncState}
+                handleManualSync={handleManualSync}
+                demoSeedState={demoSeedState}
+                handleDemoSeed={handleDemoSeed}
+                teammateForm={teammateForm}
+                teammateState={teammateState}
+                setTeammateForm={setTeammateForm}
+                handleTeammateCreate={handleTeammateCreate}
+                isSimulatedWorkspace={isSimulatedWorkspace}
+              />
+            ) : null}
+
+            <FindingsWorkbench findings={findingsState.items} loading={findingsState.loading} error={findingsState.error} />
+
             <article className="info-card full-span-card" id="forecast">
               <div className="chart-header">
                 <div className="chart-title">
@@ -1254,30 +1428,6 @@ export default function DashboardPage() {
                 ))}
               </div>
             </article>
-
-            <FindingsWorkbench findings={findingsState.items} loading={findingsState.loading} error={findingsState.error} />
-
-            <ResourceTable data={dashboard.resources} loading={dashboard.loading} />
-
-            {auth.user?.role === "admin" ? (
-              <OperationsPanel
-                auth={auth}
-                organizationContext={organizationContext}
-                connectionForm={connectionForm}
-                connectionState={connectionState}
-                setConnectionForm={setConnectionForm}
-                handleConnectionSave={handleConnectionSave}
-                syncState={syncState}
-                handleManualSync={handleManualSync}
-                demoSeedState={demoSeedState}
-                handleDemoSeed={handleDemoSeed}
-                teammateForm={teammateForm}
-                teammateState={teammateState}
-                setTeammateForm={setTeammateForm}
-                handleTeammateCreate={handleTeammateCreate}
-                isSimulatedWorkspace={isSimulatedWorkspace}
-              />
-            ) : null}
           </section>
         </main>
       </div>

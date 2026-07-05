@@ -26,7 +26,7 @@ resources.
   - Stage 3 dashboard queries and UI are working with org-scoped data, including opt-in demo seeding, real-sync cleanup behavior, and role-aware admin controls.
   - Cost charts may legitimately be empty until Cost Explorer data becomes available for the organization's AWS account or the date range includes billable usage.
   - Resource inventory intentionally mixes inventory-only rows with EC2 metric-backed rows, so the table now labels telemetry availability instead of showing repeated `n/a` values for non-EC2 resources.
-  - Stage 4 now includes stored findings, evidence panels, filters, and resolved-history support; the next major milestone is Stage 5 recommendations and approval workflows.
+  - Stage 4 now includes stored findings, evidence panels, filters, resolved-history support, a standalone in-app AWS connection guide with embedded policy JSON, and scroll-aware sidebar navigation; the next major milestone is Stage 5 recommendations and approval workflows.
 
 ## 3. Architecture Summary
 
@@ -578,6 +578,35 @@ idle threshold, so the result does not show an empty note field.
   - Browser verification confirmed the idle finding note now explains a recent 2-hour CPU average staying below the 10% idle threshold.
 - Anything the next session needs to know:
   - Stage 5 can now build on top of a findings UI that already supports open vs resolved review.
+
+### 2026-07-05 - In-app AWS connection onboarding
+- What changed:
+  - Added a Connect AWS guide directly inside the operations area of the dashboard.
+  - The guide explains the IAM user, read-only policy, access key creation, region selection, encrypted per-organization storage, and first-sync expectations.
+  - Embedded the current copy-pasteable IAM policy JSON directly in that guide so setup no longer depends on external chat context.
+- Why:
+  - Real users should not need chat context or hidden setup knowledge just to connect their AWS account.
+- Files touched:
+  - Dashboard operations UI, styles, README, architecture notes, decision notes, and project memory.
+- Manual test performed:
+  - UI-only change; manual browser verification is still needed after rebuild.
+- Anything the next session needs to know:
+  - This is guidance only; the actual credential save flow remains the same existing per-organization backend path.
+
+### 2026-07-05 - Standalone Connect AWS section and working sidebar navigation
+- What changed:
+  - Moved the AWS guide out of the operations grid into its own full-width dashboard section.
+  - Added a dedicated `Connect AWS` sidebar link.
+  - Reordered the page sections so they match the sidebar order.
+  - Updated the top title and sidebar highlight to follow the section actually in view while scrolling.
+- Why:
+  - Users should be able to navigate the dashboard structure naturally instead of seeing a permanently highlighted Overview state or a mismatched section order.
+- Files touched:
+  - Dashboard page, styles, README, architecture notes, decision notes, and project memory.
+- Manual test performed:
+  - User reported the old nav behavior was not working properly; code was updated to track actual rendered section offsets instead of relying on the original static section list order.
+- Anything the next session needs to know:
+  - If the sidebar highlight drifts again, check whether the page section order changed without updating the sidebar section order.
 
 ## 8. Manual Test Checklist Status
 
