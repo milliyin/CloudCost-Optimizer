@@ -103,3 +103,10 @@ network traffic, underutilized from 10% up to 25%, and likely performance
 mismatch at or above 85% average CPU. These thresholds are intentionally easy
 to explain in a portfolio context and can be tuned later as more historical
 data and richer metrics become available.
+
+To avoid confusing users when they briefly stress an instance during testing,
+the idle finding also carries a short recent-window comparison. That keeps the
+main decision anchored to the stable long window while still explaining why a
+resource can remain "idle" after a short-lived spike. The evidence text is
+always rendered in plain English now, even when the recent window remains below
+threshold, so the result reads as explained rather than blank.

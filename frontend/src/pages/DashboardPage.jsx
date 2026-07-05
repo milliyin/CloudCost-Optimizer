@@ -68,6 +68,9 @@ function formatTimeAgo(value) {
 function summarizeFindingImpact(finding) {
   const evidence = finding.evidence ?? {};
   if (finding.finding_type === "idle_instance") {
+    if (evidence.note) {
+      return evidence.note;
+    }
     return `Avg CPU ${evidence.avg_cpu_percent ?? "?"}% over ${evidence.window_hours ?? "?"}h`;
   }
   if (finding.finding_type === "underutilized_instance") {

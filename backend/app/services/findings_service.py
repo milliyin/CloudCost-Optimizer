@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from statistics import mean
 from typing import Any
 
@@ -41,15 +41,27 @@ def _build_finding(
     }
 
 
-def _network_average(metric_groups: dict[str, list[float]]) -> float:
-    network_values = metric_groups.get("NetworkIn", []) + metric_groups.get("NetworkOut", [])
+def _extract_values(metric_groups: dict[str, list[MetricSample]], metric_name: str) -> list[float]:
+    return [float(sample.value) for sample in metric_groups.get(metric_name, [])]
+
+
+def _network_average(metric_groups: dict[str, list[MetricSample]]) -> float:
+    network_values = _extract_values(metric_groups, "NetworkIn") + _extract_values(metric_groups, "NetworkOut")
     if not network_values:
         return 0.0
     return float(mean(network_values))
 
 
-def _detect_idle_instance(resource: CloudResource, metric_groups: dict[str, list[float]]) -> dict[str, Any] | None:
-    cpu_values = metric_groups.get("CPUUtilization", [])
+def _recent_average(metric_groups: dict[str, list[MetricSample]], metric_name: str, *, now: datetime) -> tuple[float | None, int]:
+    cutoff = now - timedelta(hours=settings.finding_recent_window_hours)
+    recent_values = [float(sample.value) for sample in metric_groups.get(metric_name, []) if sample.timestamp >= cutoff]
+    if not recent_values:
+        return None, 0
+    return float(mean(recent_values)), len(recent_values)
+
+
+def _detect_idle_instance(resource: CloudResource, metric_groups: dict[str, list[MetricSample]], *, now: datetime) -> dict[str, Any] | None:
+    cpu_values = _extract_values(metric_groups, "CPUUtilization")
     if len(cpu_values) < settings.finding_min_sample_count:
         return None
 
@@ -57,6 +69,24 @@ def _detect_idle_instance(resource: CloudResource, metric_groups: dict[str, list
     avg_network = _network_average(metric_groups)
     if avg_cpu > settings.finding_idle_cpu_threshold_percent or avg_network > settings.finding_idle_network_average_bytes:
         return None
+
+    recent_cpu, recent_sample_count = _recent_average(metric_groups, "CPUUtilization", now=now)
+    if recent_cpu is None:
+        note = (
+            f"No CPU samples were available in the most recent "
+            f"{settings.finding_recent_window_hours}h comparison window."
+        )
+    elif recent_cpu > settings.finding_idle_cpu_threshold_percent:
+        note = (
+            f"Recent {settings.finding_recent_window_hours}h CPU averaged "
+            f"{recent_cpu:.2f}%, but the full {settings.aws_metric_lookback_hours}h window remains idle."
+        )
+    else:
+        note = (
+            f"Recent {settings.finding_recent_window_hours}h CPU averaged "
+            f"{recent_cpu:.2f}%, which is still below the "
+            f"{settings.finding_idle_cpu_threshold_percent:.0f}% idle threshold."
+        )
 
     return _build_finding(
         resource=resource,
@@ -70,12 +100,16 @@ def _detect_idle_instance(resource: CloudResource, metric_groups: dict[str, list
             "sample_count": len(cpu_values),
             "cpu_threshold_percent": settings.finding_idle_cpu_threshold_percent,
             "network_threshold_average_bytes": settings.finding_idle_network_average_bytes,
+            "recent_window_hours": settings.finding_recent_window_hours,
+            "recent_avg_cpu_percent": round(recent_cpu, 2) if recent_cpu is not None else None,
+            "recent_sample_count": recent_sample_count,
+            "note": note,
         },
     )
 
 
-def _detect_underutilized_instance(resource: CloudResource, metric_groups: dict[str, list[float]]) -> dict[str, Any] | None:
-    cpu_values = metric_groups.get("CPUUtilization", [])
+def _detect_underutilized_instance(resource: CloudResource, metric_groups: dict[str, list[MetricSample]]) -> dict[str, Any] | None:
+    cpu_values = _extract_values(metric_groups, "CPUUtilization")
     if len(cpu_values) < settings.finding_min_sample_count:
         return None
 
@@ -99,8 +133,8 @@ def _detect_underutilized_instance(resource: CloudResource, metric_groups: dict[
     )
 
 
-def _detect_oversized_mismatch(resource: CloudResource, metric_groups: dict[str, list[float]]) -> dict[str, Any] | None:
-    cpu_values = metric_groups.get("CPUUtilization", [])
+def _detect_oversized_mismatch(resource: CloudResource, metric_groups: dict[str, list[MetricSample]]) -> dict[str, Any] | None:
+    cpu_values = _extract_values(metric_groups, "CPUUtilization")
     if len(cpu_values) < settings.finding_min_sample_count:
         return None
 
@@ -180,18 +214,23 @@ async def run_findings_detection(db: AsyncSession, organization_id: int) -> int:
         )
     ).scalars().all()
 
-    metrics_by_resource: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    metrics_by_resource: dict[str, dict[str, list[MetricSample]]] = defaultdict(lambda: defaultdict(list))
     for sample in metric_rows:
-        metrics_by_resource[sample.resource_id][sample.metric_name].append(float(sample.value))
+        metrics_by_resource[sample.resource_id][sample.metric_name].append(sample)
 
     detected_findings: list[dict[str, Any]] = []
+    now = datetime.now(UTC)
     for resource in resources:
         metric_groups = metrics_by_resource.get(resource.resource_id, {})
         if resource.resource_type == "ec2_instance" and resource.state == "running":
-            for detector in (_detect_idle_instance, _detect_underutilized_instance, _detect_oversized_mismatch):
-                finding = detector(resource, metric_groups)
-                if finding is not None:
-                    detected_findings.append(finding)
+            idle_finding = _detect_idle_instance(resource, metric_groups, now=now)
+            if idle_finding is not None:
+                detected_findings.append(idle_finding)
+            else:
+                for detector in (_detect_underutilized_instance, _detect_oversized_mismatch):
+                    finding = detector(resource, metric_groups)
+                    if finding is not None:
+                        detected_findings.append(finding)
         elif resource.resource_type == "ebs_volume":
             finding = _detect_unattached_volume(resource)
             if finding is not None:
@@ -206,8 +245,6 @@ async def run_findings_detection(db: AsyncSession, organization_id: int) -> int:
     ).scalars().all()
     existing_lookup = {(finding.resource_id, finding.finding_type): finding for finding in existing_findings}
     active_keys = {(item["resource_id"], item["finding_type"]) for item in detected_findings}
-    now = datetime.now(UTC)
-
     for item in detected_findings:
         key = (item["resource_id"], item["finding_type"])
         current = existing_lookup.get(key)

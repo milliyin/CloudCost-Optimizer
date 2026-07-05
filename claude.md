@@ -223,6 +223,13 @@ which explicitly describe "Low utilization Amazon EC2 instances" and
 "Unassociated Elastic IP Addresses" as real cost-optimization concerns, which
 supports using those as the first portfolio-stage findings.
 
+The idle EC2 rule now also includes a recent-window CPU comparison so a
+short-lived stress test can be explained in the evidence without replacing the
+more stable long-window decision logic. This helps users understand why a
+24-hour average can stay idle even after a brief load burst. The evidence now
+always includes a plain-English note, even when recent CPU is still below the
+idle threshold, so the result does not show an empty note field.
+
 ## 5. Environment Variables / Secrets Reference
 
 - `DATABASE_URL`
@@ -271,6 +278,9 @@ supports using those as the first portfolio-stage findings.
 - `FINDING_IDLE_NETWORK_AVERAGE_BYTES`
   - Purpose: combined average NetworkIn/NetworkOut threshold used alongside CPU for idle EC2 detection
   - Where to get it: set locally; `1000000` is the current default
+- `FINDING_RECENT_WINDOW_HOURS`
+  - Purpose: short comparison window used to explain recent CPU spikes alongside the longer idle window
+  - Where to get it: set locally; `2` is the current default
 - `ENVIRONMENT`
   - Purpose: runtime environment selector for local development vs later deployment behavior
   - Where to get it: set manually, usually `development` for local work

@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     finding_underutilized_cpu_upper_percent: float = 25.0
     finding_oversized_cpu_threshold_percent: float = 85.0
     finding_idle_network_average_bytes: float = 1000000.0
+    finding_recent_window_hours: int = 2
 
     model_config = SettingsConfigDict(
         env_file=".env",
