@@ -50,41 +50,74 @@ export default function LoginPage() {
   }
 
   return (
-    <section className="auth-card">
-      <p className="eyebrow">Stage 1 access</p>
-      <h1>Sign in</h1>
-      <p className="lede">
-        Your session now persists across refresh so client workspaces stay
-        signed in between page loads.
-      </p>
-      <form className="auth-form" onSubmit={handleSubmit}>
-        <label>
-          <span>Email</span>
-          <input
-            required
-            type="email"
-            value={form.email}
-            onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
-          />
-        </label>
-        <label>
-          <span>Password</span>
-          <input
-            required
-            type="password"
-            minLength={8}
-            value={form.password}
-            onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
-          />
-        </label>
-        {error ? <p className="form-error">{error}</p> : null}
-        <button className="primary-button" type="submit" disabled={submitting}>
-          {submitting ? "Signing in..." : "Sign in"}
-        </button>
-      </form>
-      <p className="inline-note">
-        Need an account? <Link to="/register">Create one</Link>
-      </p>
+    <section className="auth-layout">
+      <aside className="auth-hero">
+        <div className="auth-brand">
+          <strong>Cloud Intelligence</strong>
+          <span>FinOps Management</span>
+        </div>
+        <div className="auth-hero-copy">
+          <p className="eyebrow">Persistent workspace access</p>
+          <h1>Executive visibility for every cloud client.</h1>
+          <p className="lede">
+            Sign in to review organization-scoped cost data, sync health, and
+            optimization signals without losing your session on refresh.
+          </p>
+          <div className="auth-points">
+            <div className="auth-point">
+              <div className="auth-point-bullet" />
+              <div>
+                <strong>Organization isolation</strong>
+                <span>Each client workspace keeps AWS settings and synced data separated.</span>
+              </div>
+            </div>
+            <div className="auth-point">
+              <div className="auth-point-bullet" />
+              <div>
+                <strong>Admin operations in-app</strong>
+                <span>Run sync, seed demo data, and add teammates directly from the dashboard.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="auth-note">Stage 3 dashboard and multitenant workspace controls are active.</div>
+      </aside>
+
+      <div className="auth-panel">
+        <section className="auth-card">
+          <p className="eyebrow">Stage 1 access</p>
+          <h2>Sign in</h2>
+          <p className="lede">Return to your organization workspace.</p>
+          <form className="auth-form" onSubmit={handleSubmit}>
+            <label>
+              <span>Email</span>
+              <input
+                required
+                type="email"
+                value={form.email}
+                onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+              />
+            </label>
+            <label>
+              <span>Password</span>
+              <input
+                required
+                type="password"
+                minLength={8}
+                value={form.password}
+                onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
+              />
+            </label>
+            {error ? <p className="form-error">{error}</p> : null}
+            <button className="primary-button" type="submit" disabled={submitting}>
+              {submitting ? "Signing in..." : "Sign in"}
+            </button>
+          </form>
+          <p className="auth-footer">
+            Need an account? <Link to="/register">Create one</Link>
+          </p>
+        </section>
+      </div>
     </section>
   );
 }

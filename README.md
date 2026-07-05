@@ -33,15 +33,34 @@ The project currently includes:
 - Stage 1 authentication with registration, login, refresh, `/auth/me`, and role checks
 - Stage 2 ingestion foundations with AWS client factories, sync orchestration, scheduler wiring, and an admin-only `/sync/run` endpoint
 - Multi-tenant foundations with organization-owned users, organization-specific AWS connections, and tenant-scoped synced data
-- Stage 3 dashboard foundations with spend summary, cost charts, trend view, and resource inventory table
+- Stage 3 interactive dashboard with org-scoped spend summary, cost charts, trend view, findings, resource inventory, admin sync controls, and opt-in demo seed loading
 
 Current session behavior:
 
 - Access and refresh tokens are persisted locally so users stay signed in across refreshes
 - Each organization can save its own AWS credentials for isolated sync behavior
 - Per-organization AWS credentials are encrypted before storage on the backend
+- Admins can create same-organization teammates directly from the dashboard
+- Real sync clears any demo-seeded workspace rows before loading live AWS data
+
+Current inventory coverage includes:
+
+- EC2 instances
+- EBS volumes
+- Elastic IPs
+- RDS instances
+- Load balancers
+- Lambda functions
+- S3 buckets
+- DynamoDB tables
+- SQS queues
+- SNS topics
+- ECS clusters and services
+- ECR repositories
+- API Gateway APIs
 
 AWS sync notes:
 
 - Cost Explorer can take about 24 hours after first enablement to begin returning data
 - The sync layer is designed to keep resource inventory and CloudWatch ingestion working even when Cost Explorer data is still unavailable
+- Non-EC2 resources intentionally appear as inventory-only rows in the dashboard; only EC2 rows currently show CPU and network telemetry columns

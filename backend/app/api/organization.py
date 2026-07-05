@@ -7,8 +7,15 @@ from app.api.deps import DbSession, get_current_user, require_role
 from app.models.aws_connection import AWSConnection
 from app.models.organization import Organization
 from app.models.user import User, UserRole
-from app.schemas.organization import AWSConnectionRequest, AWSConnectionStatusResponse, OrganizationContextResponse
+from app.schemas.organization import (
+    AWSConnectionRequest,
+    AWSConnectionStatusResponse,
+    DemoSeedResponse,
+    DemoSeedSummaryResponse,
+    OrganizationContextResponse,
+)
 from app.services.crypto import encrypt_secret
+from app.services.demo_seed import seed_demo_workspace
 
 router = APIRouter(prefix="/organization", tags=["organization"])
 
@@ -60,4 +67,26 @@ async def save_organization_aws_connection(
     return OrganizationContextResponse(
         organization=organization,
         aws_connection=AWSConnectionStatusResponse(has_connection=True, region=payload.region),
+    )
+
+
+@router.post("/demo-seed", response_model=DemoSeedResponse)
+async def seed_organization_demo_workspace(
+    db: DbSession,
+    current_user: Annotated[User, Depends(require_role(UserRole.ADMIN))],
+) -> DemoSeedResponse:
+    summary = await seed_demo_workspace(db, current_user)
+    return DemoSeedResponse(
+        message=(
+            "Demo workspace loaded for this organization. "
+            "The saved AWS connection was cleared and the dashboard now uses simulated data."
+            if summary.aws_connection_removed
+            else "Demo workspace loaded for this organization with simulated data."
+        ),
+        summary=DemoSeedSummaryResponse(
+            cost_records_seeded=summary.cost_records_seeded,
+            resources_seeded=summary.resources_seeded,
+            metric_samples_seeded=summary.metric_samples_seeded,
+            aws_connection_removed=summary.aws_connection_removed,
+        ),
     )

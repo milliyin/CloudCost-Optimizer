@@ -19,14 +19,14 @@ resources.
 
 ## 2. Current Status
 
-- Current stage: Stage 3 - Interactive Dashboard, in progress
+- Current stage: Stage 3 complete; Stage 4 waste detection is the next implementation target
 - Last completed milestone: 2026-06-29 - Stage 1 auth, RBAC, and manual verification completed
 - Known broken / in-progress things right now:
-  - Stage 2 sync code has been partially verified with a real admin-triggered sync.
-  - Cost Explorer was only recently enabled in the sandbox account, so cost data may still be unavailable for up to about 24 hours.
-  - Stage 3 dashboard queries and UI have been implemented but not manually verified yet after the multitenant pivot.
-  - Cost charts may legitimately be empty until Cost Explorer data becomes available for the organization's AWS account.
-  - A Stage 3 frontend follow-up fix is in progress for dashboard API proxying and side-panel layout.
+  - Stage 2 sync code has been verified for inventory and CloudWatch metric collection, but Cost Explorer data is still not returning usable spend rows from the sandbox account.
+  - Stage 3 dashboard queries and UI are working with org-scoped data, including opt-in demo seeding, real-sync cleanup behavior, and role-aware admin controls.
+  - Cost charts may legitimately be empty until Cost Explorer data becomes available for the organization's AWS account or the date range includes billable usage.
+  - Resource inventory intentionally mixes inventory-only rows with EC2 metric-backed rows, so the table now labels telemetry availability instead of showing repeated `n/a` values for non-EC2 resources.
+  - Stage 4 findings are still frontend-derived heuristics right now; they are not yet persisted backend findings with evidence records.
 
 ## 3. Architecture Summary
 
@@ -152,6 +152,50 @@ The first dashboard grid pass gave the main summary/chart cards explicit spans,
 but the workspace/settings/sync/teammate panels inherited the default 1-column
 behavior in the 12-column layout. Adding a dedicated side-panel span keeps
 those admin tools readable on desktop without collapsing the main data views.
+
+### 2026-07-02 - Demo workspaces should use clearly seeded org-scoped data
+
+Cost Explorer can stay empty for a while on fresh AWS accounts, but the product
+still needs a convincing Stage 3 demo path. For that case, we are adding an
+admin-triggered org-scoped demo seed that clears only the current
+organization's synced tables, removes its saved AWS connection if needed, and
+loads obviously simulated spend, resource, and metric rows instead of pretending
+they came from AWS.
+
+### 2026-07-02 - The visual system should follow the Cloud Intelligence design brief
+
+The earlier UI was functional but drifted from the product reference: it used a
+glassmorphism-style container, green-heavy accents, and a centered card shell.
+The design brief in `design/DESIGN.md` instead calls for an indigo-led FinOps
+dashboard with fixed navigation, white data cards, subtle tonal layering, and a
+more executive, high-density information hierarchy. The frontend is therefore
+being restyled around that system rather than incrementally polishing the older
+look.
+
+### 2026-07-02 - Demo data must never silently coexist with real sync data
+
+The demo seed is useful for presentation mode, but it should be explicitly
+loaded by the admin and easy to discard. The sync flow is therefore being
+updated so a real `Run sync now` clears any demo-seeded rows first, then fetches
+ live AWS data. If no live AWS data is returned, the dashboard should stay empty
+ rather than silently falling back to old demo rows.
+
+### 2026-07-05 - Inventory coverage should match the resources users test with
+
+By this point the dashboard was already showing EC2, EBS, Elastic IP, RDS, and
+load balancer inventory, but a newly launched Lambda function did not appear
+because Lambda was not part of the Stage 2 inventory collector yet. Since users
+will naturally validate the app with lightweight AWS resources like Lambda, the
+inventory sync is being extended to include Lambda functions in the same
+organization-scoped resource table.
+
+### 2026-07-05 - Mixed inventory tables should explain telemetry availability
+
+Once Lambda and other non-EC2 resources started appearing in the shared
+inventory table, the EC2-specific CPU/network columns made the UI look broken
+because many rows naturally showed `n/a`. Instead of pretending every resource
+has the same metrics, the dashboard now adds a telemetry label and uses `-` for
+non-applicable values so mixed resource types read as intentional.
 
 ## 5. Environment Variables / Secrets Reference
 
@@ -435,12 +479,32 @@ those admin tools readable on desktop without collapsing the main data views.
 - Anything the next session needs to know:
   - If the dashboard ever shows HTML/JSON parse errors again, check the Vite proxy coverage first.
 
+### 2026-07-05 - Stage 3 multitenant dashboard polish and broader AWS inventory
+- What changed:
+  - Expanded org-scoped AWS inventory collection to include Lambda, S3, DynamoDB, SQS, SNS, ECS, ECR, and API Gateway alongside the existing EC2, EBS, Elastic IP, RDS, and load balancer coverage.
+  - Added explicit org-scoped demo seed loading plus real-sync cleanup so demo rows never silently coexist with live AWS data.
+  - Redesigned the frontend around the Cloud Intelligence shell with fixed navigation, operations controls, findings, cleaner filters, and mixed-resource telemetry labels in the inventory table.
+  - Added admin-only teammate creation, org AWS connection management, persistent sessions, and org-scoped sync controls into the dashboard experience.
+- Why:
+  - Complete the interactive Stage 3 dashboard around the actual multitenant product direction and make the real AWS validation path usable even while Cost Explorer remains empty.
+- Files touched:
+  - Backend org/sync/AWS service files, frontend dashboard/auth files, styles, docs, and project memory.
+- Manual test performed:
+  - Confirmed admin login, viewer login, and same-org teammate access work.
+  - Confirmed `org1` sync loads real EC2, EBS, and Lambda inventory from AWS.
+  - Confirmed viewer access works and admin-only controls are hidden from viewers.
+  - Confirmed the resource inventory table now handles mixed resource types without a wall of misleading `n/a` values.
+- Anything the next session needs to know:
+  - Stage 4 should replace the current frontend-only findings cards with stored backend findings and evidence-backed detection rules.
+  - Cost Explorer messaging may need refinement because the current warning still mentions the initial 24-hour warm-up pattern even when AWS simply returns no usable spend yet.
+
 ## 8. Manual Test Checklist Status
 
 - Stage 0: base Docker/frontend flow confirmed during local setup; AWS setup still being completed separately for Stage 2 readiness
 - Stage 1: passed on 2026-06-29
 - Stage 2: partially verified on 2026-07-01; resource inventory and metrics confirmed, waiting on Cost Explorer readiness for full gate coverage
-- Multitenancy pivot: implementation in progress as of 2026-07-01; manual verification pending
+- Stage 3: passed for multitenant dashboard, real inventory sync, viewer/admin separation, demo seeding behavior, and mixed-resource inventory handling; spend charts remain dependent on AWS Cost Explorer data availability
+- Multitenancy pivot: landed; org-scoped auth, AWS connections, sync data, teammate creation, and dashboard views are implemented
 
 ## 9. AWS Account / Sandbox Notes
 

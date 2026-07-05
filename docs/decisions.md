@@ -64,3 +64,25 @@ The dashboard work was intentionally paused until organizations, tenant-scoped
 sync tables, and org-specific AWS connections were in place. That prevents us
 from building nice charts on top of the wrong data-isolation model and then
 having to unwind the dashboard later.
+
+## 2026-07-02 - Demo data must be explicit and disposable
+
+The product needs a convincing dashboard demo path even while fresh AWS billing
+data may still be unavailable. Instead of silently mixing fake and real rows,
+demo data is loaded only when an admin explicitly requests it, and the next
+real sync clears that seeded workspace data before persisting live AWS results.
+
+## 2026-07-05 - Inventory coverage should follow the resources users actually test
+
+Once users began validating the app with lightweight AWS resources like Lambda,
+the earlier inventory set felt artificially narrow. The sync collector was
+therefore expanded beyond EC2 and EBS to include Lambda and several other
+common AWS services so the dashboard better reflects real sandbox usage.
+
+## 2026-07-05 - Mixed resource tables must explain telemetry gaps
+
+After broader inventory coverage landed, a shared table with EC2 CPU and
+network columns made non-EC2 resources look broken because many cells read
+`n/a`. The dashboard now treats that as a UX problem instead of a data problem:
+it labels telemetry availability per row and reserves live CPU/network values
+for the EC2 resources that actually provide them in the current sync flow.

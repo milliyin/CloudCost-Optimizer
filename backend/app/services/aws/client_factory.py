@@ -34,3 +34,39 @@ def get_rds_client(*, region: str, access_key_id: str, secret_access_key: str):
 
 def get_elbv2_client(*, region: str, access_key_id: str, secret_access_key: str):
     return _client("elbv2", region=region, access_key_id=access_key_id, secret_access_key=secret_access_key)
+
+
+def get_lambda_client(*, region: str, access_key_id: str, secret_access_key: str):
+    return _client("lambda", region=region, access_key_id=access_key_id, secret_access_key=secret_access_key)
+
+
+def get_s3_client(*, region: str, access_key_id: str, secret_access_key: str):
+    return _client("s3", region=region, access_key_id=access_key_id, secret_access_key=secret_access_key)
+
+
+def get_dynamodb_client(*, region: str, access_key_id: str, secret_access_key: str):
+    return _client("dynamodb", region=region, access_key_id=access_key_id, secret_access_key=secret_access_key)
+
+
+def get_sqs_client(*, region: str, access_key_id: str, secret_access_key: str):
+    return _client("sqs", region=region, access_key_id=access_key_id, secret_access_key=secret_access_key)
+
+
+def get_sns_client(*, region: str, access_key_id: str, secret_access_key: str):
+    return _client("sns", region=region, access_key_id=access_key_id, secret_access_key=secret_access_key)
+
+
+def get_ecs_client(*, region: str, access_key_id: str, secret_access_key: str):
+    return _client("ecs", region=region, access_key_id=access_key_id, secret_access_key=secret_access_key)
+
+
+def get_ecr_client(*, region: str, access_key_id: str, secret_access_key: str):
+    return _client("ecr", region=region, access_key_id=access_key_id, secret_access_key=secret_access_key)
+
+
+def get_apigateway_client(*, region: str, access_key_id: str, secret_access_key: str):
+    return _client("apigateway", region=region, access_key_id=access_key_id, secret_access_key=secret_access_key)
+
+
+def get_apigatewayv2_client(*, region: str, access_key_id: str, secret_access_key: str):
+    return _client("apigatewayv2", region=region, access_key_id=access_key_id, secret_access_key=secret_access_key)

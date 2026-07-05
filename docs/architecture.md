@@ -2,13 +2,13 @@
 
 Current architecture:
 
-- `frontend/` runs a Vite + React application with route-based auth screens, persistent session storage, organization AWS-connection management, and dashboard charts/tables.
-- `backend/` runs a FastAPI app with health, auth, refresh, organization management, dashboard, role-check, and manual sync endpoints.
+- `frontend/` runs a Vite + React application with route-based auth screens, persistent session storage, organization AWS-connection management, teammate creation, dashboard charts/tables, findings cards, and admin sync controls.
+- `backend/` runs a FastAPI app with health, auth, refresh, organization management, dashboard, role-check, demo seed, teammate creation, and manual sync endpoints.
 - `postgres` stores organizations, users, AWS connection records, cost records, cloud resources, and metric samples.
 - An APScheduler background job is wired into FastAPI lifespan to trigger periodic syncs.
 
 Planned direction:
 
-- Frontend will become the authenticated dashboard UI.
-- Backend will provide auth, sync orchestration, reporting, and forecasting APIs.
-- PostgreSQL will store tenant-scoped synced AWS data, findings, recommendations, and audit logs.
+- Frontend will expand into findings, recommendation, budget, and reporting workflows.
+- Backend will provide auth, sync orchestration, evidence-backed findings, reporting, and forecasting APIs.
+- PostgreSQL will expand to store tenant-scoped findings, recommendations, and audit logs alongside synced AWS data.

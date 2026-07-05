@@ -16,6 +16,7 @@ from app.services.aws.credentials import get_organization_aws_credentials
 from app.services.aws.cost_explorer import get_cost_forecast, get_cost_grouped_by_region, get_cost_grouped_by_service
 from app.services.aws.errors import AWSServiceError
 from app.services.aws.resource_inventory import get_resource_inventory
+from app.services.demo_seed import clear_demo_seed_workspace
 
 
 async def _upsert_cost_records(db: AsyncSession, payloads: list[dict], synced_at: datetime, organization_id: int) -> int:
@@ -83,6 +84,7 @@ async def _upsert_metric_samples(db: AsyncSession, payloads: list[dict], organiz
 
 async def run_sync(db: AsyncSession, organization: Organization) -> dict:
     synced_at = datetime.now(UTC)
+    await clear_demo_seed_workspace(db, organization.id)
     credentials = await get_organization_aws_credentials(db, organization.id)
     summary = {
         "organization_id": organization.id,
@@ -98,6 +100,7 @@ async def run_sync(db: AsyncSession, organization: Organization) -> dict:
         summary["warnings"].append(
             "No AWS connection is configured for this organization yet. Save organization-specific AWS credentials before running sync."
         )
+        await db.commit()
         return summary
 
     try:
@@ -113,7 +116,8 @@ async def run_sync(db: AsyncSession, organization: Organization) -> dict:
         else:
             raise
 
-    inventory = get_resource_inventory(credentials)
+    inventory, inventory_warnings = get_resource_inventory(credentials)
+    summary["warnings"].extend(inventory_warnings)
     ec2_instance_ids = [resource["resource_id"] for resource in inventory if resource["resource_type"] == "ec2_instance"]
 
     metric_samples: list[dict] = []

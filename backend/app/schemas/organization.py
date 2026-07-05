@@ -25,3 +25,15 @@ class AWSConnectionStatusResponse(BaseModel):
 class OrganizationContextResponse(BaseModel):
     organization: OrganizationResponse
     aws_connection: AWSConnectionStatusResponse
+
+
+class DemoSeedSummaryResponse(BaseModel):
+    cost_records_seeded: int
+    resources_seeded: int
+    metric_samples_seeded: int
+    aws_connection_removed: bool
+
+
+class DemoSeedResponse(BaseModel):
+    message: str
+    summary: DemoSeedSummaryResponse

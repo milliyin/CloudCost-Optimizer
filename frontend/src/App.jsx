@@ -13,7 +13,7 @@ function HomeRedirect() {
 
 export default function App() {
   return (
-    <main className="app-shell">
+    <div className="app-root">
       <Routes>
         <Route path="/" element={<HomeRedirect />} />
         <Route path="/login" element={<LoginPage />} />
@@ -27,6 +27,6 @@ export default function App() {
           }
         />
       </Routes>
-    </main>
+    </div>
   );
 }

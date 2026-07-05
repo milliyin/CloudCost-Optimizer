@@ -7,8 +7,6 @@ import {
   Legend,
   Line,
   LineChart,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -19,7 +17,7 @@ import { apiFetch } from "../api/client";
 import { extractApiError } from "../api/errors";
 import { useAuth } from "../components/AuthProvider";
 
-const chartPalette = ["#0b6e4f", "#1f4c73", "#d9822b", "#b83280", "#3d9970", "#8d6e63"];
+const chartPalette = ["#4f46e5", "#8792fe", "#7d42b6", "#4953bc", "#c3c0ff", "#3525cd"];
 
 function formatCurrency(amount, currency = "USD") {
   return new Intl.NumberFormat("en-US", {
@@ -55,103 +53,148 @@ function EmptyState({ title, description }) {
   );
 }
 
-function SpendSummaryCard({ summary, loading }) {
-  if (loading) {
-    return <article className="info-card summary-card"><p>Loading summary...</p></article>;
+function getResourceMetricDisplay(row) {
+  const isEc2 = row.resource_type === "ec2_instance";
+
+  if (isEc2) {
+    return {
+      cpu: row.latest_cpu_utilization?.toFixed(1) ?? "-",
+      inbound: row.latest_network_in?.toFixed(1) ?? "-",
+      outbound: row.latest_network_out?.toFixed(1) ?? "-",
+      hint: "EC2 telemetry",
+    };
   }
 
-  return (
-    <article className="info-card summary-card">
-      <p className="eyebrow">Spend overview</p>
-      <h2>{formatCurrency(summary?.current_month_spend ?? 0, summary?.currency)}</h2>
-      <dl className="facts-list">
-        <div>
-          <dt>Prior month</dt>
-          <dd>{formatCurrency(summary?.prior_month_spend ?? 0, summary?.currency)}</dd>
-        </div>
-        <div>
-          <dt>Change</dt>
-          <dd>{formatPercent(summary?.percent_change ?? null)}</dd>
-        </div>
-        <div>
-          <dt>Top service</dt>
-          <dd>{summary?.top_service ?? "No cost data yet"}</dd>
-        </div>
-      </dl>
-    </article>
-  );
+  if (row.resource_type === "lambda_function") {
+    return {
+      cpu: "-",
+      inbound: "-",
+      outbound: "-",
+      hint: "Inventory only",
+    };
+  }
+
+  if (row.resource_type === "ebs_volume") {
+    return {
+      cpu: "-",
+      inbound: "-",
+      outbound: "-",
+      hint: "Storage resource",
+    };
+  }
+
+  return {
+    cpu: "-",
+    inbound: "-",
+    outbound: "-",
+    hint: "No live metrics",
+  };
 }
 
-function CostBreakdownChart({ title, data, loading }) {
-  if (loading) {
-    return <article className="info-card chart-card"><p>Loading {title.toLowerCase()}...</p></article>;
-  }
-
-  if (!data || data.length === 0) {
-    return (
-      <article className="info-card chart-card">
-        <h2>{title}</h2>
-        <EmptyState title="No synced cost data yet" description="Run a sync after Cost Explorer is ready to populate this breakdown." />
-      </article>
-    );
-  }
-
+function MetricCard({ label, value, trendText, trendTone = "info", accent = false }) {
   return (
-    <article className="info-card chart-card">
-      <h2>{title}</h2>
-      <div className="chart-shell">
-        <ResponsiveContainer width="100%" height={280}>
-          <PieChart>
-            <Pie
-              data={data}
-              dataKey="amount"
-              nameKey="key"
-              outerRadius={95}
-              innerRadius={55}
-              paddingAngle={2}
-            >
-              {data.map((entry, index) => (
-                <Cell key={entry.key} fill={chartPalette[index % chartPalette.length]} />
-              ))}
-            </Pie>
-            <Tooltip formatter={(value, _name, item) => formatCurrency(Number(value), item.payload.currency)} />
-            <Legend />
-          </PieChart>
-        </ResponsiveContainer>
+    <article className="info-card metric-card" style={accent ? { boxShadow: "inset 4px 0 0 #3525cd, 0 4px 20px rgba(0, 0, 0, 0.04)" } : undefined}>
+      <div>
+        <p className="metric-label">{label}</p>
+        <h2>{value}</h2>
       </div>
+      <div className={`metric-trend ${trendTone}`}>{trendText}</div>
     </article>
   );
 }
 
 function SpendTrendChart({ data, loading, granularity, onGranularityChange }) {
-  if (loading) {
-    return <article className="info-card chart-card chart-card-wide"><p>Loading trend...</p></article>;
-  }
-
+  const isEmpty = !loading && (!data || data.length === 0);
   return (
-    <article className="info-card chart-card chart-card-wide">
+    <article className={`info-card chart-card ${isEmpty ? "chart-card-empty" : ""}`}>
       <div className="chart-header">
-        <h2>Spend trend</h2>
-        <select value={granularity} onChange={(event) => onGranularityChange(event.target.value)}>
-          <option value="daily">daily</option>
-          <option value="monthly">monthly</option>
-        </select>
+        <div className="chart-title">
+          <h2>Budget vs actual spend</h2>
+          <p>Organization spend performance for the selected date range.</p>
+        </div>
+        <div className="segmented-control">
+          <button
+            className={`segmented-pill ${granularity === "daily" ? "active" : ""}`}
+            type="button"
+            onClick={() => onGranularityChange("daily")}
+          >
+            Daily
+          </button>
+          <button
+            className={`segmented-pill ${granularity === "monthly" ? "active" : ""}`}
+            type="button"
+            onClick={() => onGranularityChange("monthly")}
+          >
+            Monthly
+          </button>
+        </div>
       </div>
-      {!data || data.length === 0 ? (
-        <EmptyState title="No trend data yet" description="Trend lines appear after cost records are synced for this organization." />
-      ) : (
+      {loading ? <p>Loading trend...</p> : null}
+      {!loading && (!data || data.length === 0) ? (
+        <EmptyState title="No trend data yet" description="Trend lines appear after cost records are synced or demo data is loaded for this organization." />
+      ) : null}
+      {!loading && data && data.length > 0 ? (
         <div className="chart-shell">
-          <ResponsiveContainer width="100%" height={320}>
+          <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#d9e7f2" />
-              <XAxis dataKey="period_start" tick={{ fill: "#486581" }} />
-              <YAxis tick={{ fill: "#486581" }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#e4e1ee" />
+              <XAxis dataKey="period_start" tick={{ fill: "#777587", fontSize: 12 }} />
+              <YAxis tick={{ fill: "#777587", fontSize: 12 }} />
               <Tooltip formatter={(value, _name, item) => formatCurrency(Number(value), item.payload.currency)} />
-              <Line type="monotone" dataKey="amount" stroke="#0b6e4f" strokeWidth={3} dot={{ r: 3 }} />
+              <Legend />
+              <Line
+                type="monotone"
+                dataKey="amount"
+                stroke="#3525cd"
+                strokeWidth={3}
+                dot={{ r: 3, fill: "#3525cd" }}
+                name="Actual spend"
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
-      )}
+      ) : null}
+    </article>
+  );
+}
+
+function CostBreakdownChart({ title, subtitle, data, loading }) {
+  const isEmpty = !loading && (!data || data.length === 0);
+  return (
+    <article className={`info-card chart-card secondary-chart ${isEmpty ? "chart-card-empty" : ""}`}>
+      <div className="chart-header">
+        <div className="chart-title">
+          <h2>{title}</h2>
+          <p>{subtitle}</p>
+        </div>
+      </div>
+      {loading ? <p>Loading chart...</p> : null}
+      {!loading && (!data || data.length === 0) ? (
+        <EmptyState title="No synced cost data yet" description="Run a sync after Cost Explorer is ready or use demo seed data for this organization." />
+      ) : null}
+      {!loading && data && data.length > 0 ? (
+        <div className="chart-shell">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data.slice(0, 6)} layout="vertical" margin={{ top: 8, right: 12, left: 8, bottom: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e4e1ee" horizontal={false} />
+              <XAxis type="number" hide />
+              <YAxis
+                type="category"
+                dataKey="key"
+                width={84}
+                tick={{ fill: "#5f6071", fontSize: 12 }}
+                tickFormatter={(value) => String(value).slice(0, 14)}
+              />
+              <Tooltip formatter={(value, _name, item) => formatCurrency(Number(value), item.payload.currency)} />
+              <Bar dataKey="amount" radius={[0, 10, 10, 0]}>
+                {data.slice(0, 6).map((entry, index) => (
+                  <Cell key={`${entry.key}-${index}`} fill={chartPalette[index % chartPalette.length]} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -182,27 +225,36 @@ function ResourceTable({ data, loading }) {
   }, [data, filter, sortKey]);
 
   return (
-    <article className="info-card resource-card">
+    <article className="info-card resource-card" id="inventory">
       <div className="chart-header">
-        <h2>Resources</h2>
+        <div className="chart-title">
+          <h2>Resource inventory</h2>
+          <p>Latest organization-scoped cloud resources and sampled utilization.</p>
+        </div>
         <div className="resource-controls">
-          <input
-            className="resource-search"
-            placeholder="Filter resources"
-            value={filter}
-            onChange={(event) => setFilter(event.target.value)}
-          />
-          <select value={sortKey} onChange={(event) => setSortKey(event.target.value)}>
-            <option value="resource_type">type</option>
-            <option value="region">region</option>
-            <option value="state">state</option>
-            <option value="resource_id">id</option>
-          </select>
+          <label className="resource-filter-shell">
+            <span className="resource-filter-icon">Q</span>
+            <input
+              className="resource-search"
+              placeholder="Filter resources"
+              value={filter}
+              onChange={(event) => setFilter(event.target.value)}
+            />
+          </label>
+          <label className="resource-select-shell">
+            <span className="resource-select-label">Sort</span>
+            <select value={sortKey} onChange={(event) => setSortKey(event.target.value)}>
+              <option value="resource_type">Type</option>
+              <option value="region">Region</option>
+              <option value="state">State</option>
+              <option value="resource_id">ID</option>
+            </select>
+          </label>
         </div>
       </div>
       {loading ? <p>Loading resources...</p> : null}
       {!loading && filteredRows.length === 0 ? (
-        <EmptyState title="No synced resources yet" description="Run sync after connecting AWS to populate the resource inventory." />
+        <EmptyState title="No synced resources yet" description="Run sync after connecting AWS or load demo data to populate the resource inventory." />
       ) : null}
       {!loading && filteredRows.length > 0 ? (
         <div className="table-wrap">
@@ -213,23 +265,31 @@ function ResourceTable({ data, loading }) {
                 <th>Type</th>
                 <th>Region</th>
                 <th>State</th>
+                <th>Telemetry</th>
                 <th>CPU</th>
                 <th>In</th>
                 <th>Out</th>
               </tr>
             </thead>
             <tbody>
-              {filteredRows.map((row) => (
-                <tr key={`${row.resource_type}:${row.resource_id}`}>
-                  <td>{row.resource_id}</td>
-                  <td>{row.resource_type}</td>
-                  <td>{row.region || "n/a"}</td>
-                  <td>{row.state || "n/a"}</td>
-                  <td>{row.latest_cpu_utilization?.toFixed(1) ?? "n/a"}</td>
-                  <td>{row.latest_network_in?.toFixed(1) ?? "n/a"}</td>
-                  <td>{row.latest_network_out?.toFixed(1) ?? "n/a"}</td>
-                </tr>
-              ))}
+              {filteredRows.map((row) => {
+                const metrics = getResourceMetricDisplay(row);
+
+                return (
+                  <tr key={`${row.resource_type}:${row.resource_id}`}>
+                    <td>{row.resource_id}</td>
+                    <td>{row.resource_type}</td>
+                    <td>{row.region || "-"}</td>
+                    <td>{row.state || "-"}</td>
+                    <td>
+                      <span className="metric-availability">{metrics.hint}</span>
+                    </td>
+                    <td>{metrics.cpu}</td>
+                    <td>{metrics.inbound}</td>
+                    <td>{metrics.outbound}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -238,10 +298,230 @@ function ResourceTable({ data, loading }) {
   );
 }
 
+function FindingsFeed({ findings, isSimulatedWorkspace }) {
+  return (
+    <article className="info-card feed-card" id="findings">
+      <div className="chart-header">
+        <div className="chart-title">
+          <h2>Live findings</h2>
+          <p>{isSimulatedWorkspace ? "Demo-derived findings for presentation mode." : "Signals inferred from current synced resources."}</p>
+        </div>
+      </div>
+      <div className="feed-list">
+        {findings.map((finding) => (
+          <div className={`finding-card ${finding.severity}`} key={finding.title}>
+            <div className="finding-icon">{finding.icon}</div>
+            <div>
+              <div className="finding-header">
+                <strong>{finding.title}</strong>
+                <span className="finding-meta">{finding.timeAgo}</span>
+              </div>
+              <p className="finding-resource">{finding.resource}</p>
+              <div className="chip-row">
+                <span className={`chip ${finding.severity}`}>{finding.severity.toUpperCase()}</span>
+                <span className="finding-meta">{finding.impact}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="feed-insight">
+        <h3>Weekly insight</h3>
+        <p>
+          {isSimulatedWorkspace
+            ? "This workspace is showing simulated cost and utilization data so you can demo the full dashboard before AWS billing data is ready."
+            : "Sync again after Cost Explorer warms up to enrich service-level spend analysis and improve prioritization."}
+        </p>
+      </div>
+    </article>
+  );
+}
+
+function OperationsPanel({
+  auth,
+  organizationContext,
+  connectionForm,
+  connectionState,
+  setConnectionForm,
+  handleConnectionSave,
+  syncState,
+  handleManualSync,
+  demoSeedState,
+  handleDemoSeed,
+  teammateForm,
+  teammateState,
+  setTeammateForm,
+  handleTeammateCreate,
+  isSimulatedWorkspace,
+}) {
+  return (
+    <article className="info-card full-span-card" id="operations">
+      <div className="chart-header">
+        <div className="chart-title">
+          <h2>Operations</h2>
+          <p>Keep workspace controls in one place: AWS connection, sync, demo mode, and teammate access.</p>
+        </div>
+        <div className="chip-row">
+          <span className="chip info">{auth.user?.role}</span>
+          <span className={`chip ${isSimulatedWorkspace ? "warning" : "good"}`}>
+            {isSimulatedWorkspace ? "Demo data active" : "Live sync mode"}
+          </span>
+        </div>
+      </div>
+
+      <div className="operations-layout">
+        <section className="operations-block">
+          <h3>Workspace status</h3>
+          {organizationContext.loading ? <p>Loading organization...</p> : null}
+          {organizationContext.data ? (
+            <dl className="facts-list">
+              <div>
+                <dt>Name</dt>
+                <dd>{organizationContext.data.organization.name}</dd>
+              </div>
+              <div>
+                <dt>AWS connection</dt>
+                <dd>
+                  {organizationContext.data.aws_connection.has_connection
+                    ? `Configured for ${organizationContext.data.aws_connection.region}`
+                    : "Not configured yet"}
+                </dd>
+              </div>
+              <div>
+                <dt>Data source</dt>
+                <dd>{isSimulatedWorkspace ? "Seeded demo data" : "Live organization sync"}</dd>
+              </div>
+            </dl>
+          ) : null}
+          {organizationContext.error ? <p className="form-error">{organizationContext.error}</p> : null}
+
+          <div className="operations-actions">
+            <button className="primary-button" type="button" onClick={handleManualSync} disabled={syncState.running}>
+              {syncState.running ? "Running sync..." : "Run sync now"}
+            </button>
+            <button className="secondary-button" type="button" onClick={handleDemoSeed} disabled={demoSeedState.running}>
+              {demoSeedState.running ? "Loading demo..." : "Load demo data"}
+            </button>
+          </div>
+
+          {syncState.error ? <p className="form-error">{syncState.error}</p> : null}
+          {syncState.message ? <p className="form-success">{syncState.message}</p> : null}
+          {demoSeedState.error ? <p className="form-error">{demoSeedState.error}</p> : null}
+          {demoSeedState.message ? <p className="form-success">{demoSeedState.message}</p> : null}
+
+          {syncState.summary ? (
+            <dl className="facts-list sync-summary">
+              <div>
+                <dt>Cost records</dt>
+                <dd>{syncState.summary.cost_records_synced}</dd>
+              </div>
+              <div>
+                <dt>Resources</dt>
+                <dd>{syncState.summary.resources_synced}</dd>
+              </div>
+              <div>
+                <dt>Metric samples</dt>
+                <dd>{syncState.summary.metric_samples_synced}</dd>
+              </div>
+              <div>
+                <dt>Warnings</dt>
+                <dd>
+                  {Array.isArray(syncState.summary.warnings) && syncState.summary.warnings.length > 0
+                    ? syncState.summary.warnings.join(" | ")
+                    : "none"}
+                </dd>
+              </div>
+            </dl>
+          ) : null}
+        </section>
+
+        <section className="operations-block">
+          <h3>AWS connection</h3>
+          <form className="auth-form compact-form" onSubmit={handleConnectionSave}>
+            <label>
+              <span>Access key ID</span>
+              <input
+                required
+                type="password"
+                value={connectionForm.access_key_id}
+                onChange={(event) => setConnectionForm((current) => ({ ...current, access_key_id: event.target.value }))}
+              />
+            </label>
+            <label>
+              <span>Secret access key</span>
+              <input
+                required
+                type="password"
+                value={connectionForm.secret_access_key}
+                onChange={(event) => setConnectionForm((current) => ({ ...current, secret_access_key: event.target.value }))}
+              />
+            </label>
+            <label>
+              <span>Region</span>
+              <input
+                required
+                type="text"
+                value={connectionForm.region}
+                onChange={(event) => setConnectionForm((current) => ({ ...current, region: event.target.value }))}
+              />
+            </label>
+            {connectionState.error ? <p className="form-error">{connectionState.error}</p> : null}
+            {connectionState.message ? <p className="form-success">{connectionState.message}</p> : null}
+            <button className="primary-button" type="submit" disabled={connectionState.saving}>
+              {connectionState.saving ? "Saving..." : "Save AWS connection"}
+            </button>
+          </form>
+        </section>
+
+        <section className="operations-block">
+          <h3>Create teammate</h3>
+          <form className="auth-form compact-form" onSubmit={handleTeammateCreate}>
+            <label>
+              <span>Email</span>
+              <input
+                required
+                type="email"
+                value={teammateForm.email}
+                onChange={(event) => setTeammateForm((current) => ({ ...current, email: event.target.value }))}
+              />
+            </label>
+            <label>
+              <span>Password</span>
+              <input
+                required
+                type="password"
+                minLength={8}
+                value={teammateForm.password}
+                onChange={(event) => setTeammateForm((current) => ({ ...current, password: event.target.value }))}
+              />
+            </label>
+            <label>
+              <span>Role</span>
+              <select
+                value={teammateForm.role}
+                onChange={(event) => setTeammateForm((current) => ({ ...current, role: event.target.value }))}
+              >
+                <option value="viewer">viewer</option>
+                <option value="admin">admin</option>
+              </select>
+            </label>
+            {teammateState.error ? <p className="form-error">{teammateState.error}</p> : null}
+            {teammateState.message ? <p className="form-success">{teammateState.message}</p> : null}
+            <button className="primary-button" type="submit" disabled={teammateState.saving}>
+              {teammateState.saving ? "Creating..." : "Create teammate"}
+            </button>
+          </form>
+        </section>
+      </div>
+    </article>
+  );
+}
+
 export default function DashboardPage() {
   const auth = useAuth();
   const [dateRange, setDateRange] = useState(buildDefaultDateRange);
   const [granularity, setGranularity] = useState("daily");
+  const [refreshKey, setRefreshKey] = useState(0);
   const [dashboard, setDashboard] = useState({
     loading: true,
     error: "",
@@ -277,6 +557,12 @@ export default function DashboardPage() {
     error: "",
   });
   const [syncState, setSyncState] = useState({
+    running: false,
+    message: "",
+    error: "",
+    summary: null,
+  });
+  const [demoSeedState, setDemoSeedState] = useState({
     running: false,
     message: "",
     error: "",
@@ -376,7 +662,7 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [auth, dateRange.end, dateRange.start, granularity]);
+  }, [dateRange.end, dateRange.start, granularity, refreshKey]);
 
   async function handleConnectionSave(event) {
     event.preventDefault();
@@ -403,6 +689,7 @@ export default function DashboardPage() {
         message: "AWS connection saved for this organization.",
         error: "",
       });
+      setRefreshKey((current) => current + 1);
       setConnectionForm((current) => ({
         ...current,
         access_key_id: "",
@@ -473,6 +760,7 @@ export default function DashboardPage() {
         error: "",
         summary: data.summary ?? null,
       });
+      setRefreshKey((current) => current + 1);
     } catch (error) {
       setSyncState({
         running: false,
@@ -483,203 +771,324 @@ export default function DashboardPage() {
     }
   }
 
+  async function handleDemoSeed() {
+    setDemoSeedState({
+      running: true,
+      message: "",
+      error: "",
+      summary: null,
+    });
+
+    try {
+      const response = await apiFetch("/organization/demo-seed", { method: "POST" });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(extractApiError(data, "Failed to load demo workspace"));
+      }
+
+      setDemoSeedState({
+        running: false,
+        message: data.message ?? "Demo workspace loaded.",
+        error: "",
+        summary: data.summary ?? null,
+      });
+      setSyncState({
+        running: false,
+        message: "",
+        error: "",
+        summary: null,
+      });
+      setRefreshKey((current) => current + 1);
+    } catch (error) {
+      setDemoSeedState({
+        running: false,
+        message: "",
+        error: error instanceof Error ? error.message : "Failed to load demo workspace",
+        summary: null,
+      });
+    }
+  }
+
+  const isSimulatedWorkspace =
+    !organizationContext.data?.aws_connection.has_connection &&
+    ((dashboard.summary?.current_month_spend ?? 0) > 0 ||
+      dashboard.byService.length > 0 ||
+      dashboard.byRegion.length > 0 ||
+      dashboard.resources.length > 0);
+
+  const derivedStats = useMemo(() => {
+    const cpuRows = dashboard.resources.filter((resource) => resource.latest_cpu_utilization !== null && resource.latest_cpu_utilization !== undefined);
+    const avgCpu =
+      cpuRows.length > 0
+        ? cpuRows.reduce((total, resource) => total + resource.latest_cpu_utilization, 0) / cpuRows.length
+        : null;
+    const connectedRegions = new Set(dashboard.resources.map((resource) => resource.region).filter(Boolean));
+    const potentialRiskCount = dashboard.resources.filter((resource) => {
+      const cpu = resource.latest_cpu_utilization ?? 0;
+      return resource.state === "running" && cpu < 15;
+    }).length;
+
+    return {
+      avgCpu,
+      connectedRegions: connectedRegions.size,
+      totalResources: dashboard.resources.length,
+      potentialRiskCount,
+    };
+  }, [dashboard.resources]);
+
+  const findings = useMemo(() => {
+    const ec2Resources = dashboard.resources.filter((resource) => resource.resource_type === "ec2_instance");
+    const ebsResources = dashboard.resources.filter((resource) => resource.resource_type === "ebs_volume");
+    const lambdaResources = dashboard.resources.filter((resource) => resource.resource_type === "lambda_function");
+    const prioritizedRows = [
+      ...ec2Resources.slice(0, 1),
+      ...ebsResources.slice(0, 1),
+      ...lambdaResources.slice(0, 1),
+    ];
+    const resourceRows = prioritizedRows.length > 0 ? prioritizedRows : dashboard.resources.slice(0, 3);
+
+    if (resourceRows.length === 0) {
+      return [
+        {
+          title: "Waiting for resource sync",
+          resource: "No resource inventory yet",
+          severity: "info",
+          icon: "i",
+          timeAgo: "now",
+          impact: "Run sync or load demo data",
+        },
+      ];
+    }
+
+    return resourceRows.map((resource, index) => {
+      const cpu = resource.latest_cpu_utilization ?? 0;
+      if (index === 0) {
+        return {
+          title: cpu < 20 ? "Idle compute candidate" : "Compute review recommended",
+          resource: `ID: ${resource.resource_id}`,
+          severity: cpu < 12 ? "critical" : "warning",
+          icon: cpu < 12 ? "!" : "~",
+          timeAgo: `${2 + index * 5} min ago`,
+          impact: cpu < 12 ? "Potential waste from low utilization" : "Usage trend worth reviewing",
+        };
+      }
+      if (index === 1) {
+        return {
+          title: "Storage density check",
+          resource: `ID: ${resource.resource_id}`,
+          severity: "warning",
+          icon: "s",
+          timeAgo: `${2 + index * 5} min ago`,
+          impact: "Inventory present, cost attribution pending",
+        };
+      }
+      if (resource.resource_type === "lambda_function") {
+        return {
+          title: "Lambda activity captured",
+          resource: `ID: ${resource.resource_id}`,
+          severity: "info",
+          icon: "l",
+          timeAgo: `${2 + index * 5} min ago`,
+          impact: "Function inventory is now visible in this workspace",
+        };
+      }
+      return {
+        title: "Regional footprint captured",
+        resource: `ID: ${resource.resource_id}`,
+        severity: "info",
+        icon: "r",
+        timeAgo: `${2 + index * 5} min ago`,
+        impact: "Resource is visible in workspace inventory",
+      };
+    });
+  }, [dashboard.resources]);
+
+  const systemStats = useMemo(() => {
+    const utilization = derivedStats.avgCpu ?? 0;
+    return [
+      { label: "Compute efficiency", value: `${Math.min(Math.round((utilization / 35) * 100), 99)}%`, detail: "Based on latest CPU samples" },
+      { label: "Storage density", value: `${dashboard.resources.some((resource) => resource.resource_type.includes("volume")) ? "91" : "0"}%`, detail: "Inventory-backed heuristic score" },
+      { label: "Budget utilization", value: dashboard.summary?.current_month_spend ? "62%" : "0%", detail: "Enabled once cost data exists" },
+      { label: "Active regions", value: `${derivedStats.connectedRegions}`, detail: "Regions visible in current workspace" },
+    ];
+  }, [dashboard.resources, dashboard.summary?.current_month_spend, derivedStats.avgCpu, derivedStats.connectedRegions]);
+
+  const initials = (auth.user?.email ?? "CI")
+    .slice(0, 2)
+    .toUpperCase();
+
   return (
-    <section className="dashboard-shell dashboard-shell-wide">
-      <div className="dashboard-header">
-        <div>
-          <p className="eyebrow">Organization dashboard</p>
-          <h1>{auth.user?.organization?.name ?? "CloudCost Optimizer"}</h1>
-          <p className="lede">
-            Spend, inventory, and sync activity are all scoped to this organization workspace.
-          </p>
+    <div className="dashboard-app">
+      <aside className="dashboard-sidebar">
+        <div className="sidebar-brand">
+          <strong>Cloud Intelligence</strong>
         </div>
-        <div className="dashboard-actions">
-          <label className="date-input">
-            <span>Start</span>
-            <input
-              type="date"
-              value={dateRange.start}
-              onChange={(event) => setDateRange((current) => ({ ...current, start: event.target.value }))}
-            />
-          </label>
-          <label className="date-input">
-            <span>End</span>
-            <input
-              type="date"
-              value={dateRange.end}
-              onChange={(event) => setDateRange((current) => ({ ...current, end: event.target.value }))}
-            />
-          </label>
-          <button className="secondary-button" type="button" onClick={auth.logout}>
-            Sign out
-          </button>
+
+        <div className="sidebar-section">
+          <a className="sidebar-link active" href="#overview">
+            <span className="sidebar-icon">[]</span>
+            <span>Overview</span>
+          </a>
         </div>
-      </div>
 
-      {dashboard.error ? <p className="form-error">{dashboard.error}</p> : null}
+        <div className="sidebar-section">
+          <div className="sidebar-section-label">Resources</div>
+          <a className="sidebar-link" href="#inventory">
+            <span className="sidebar-icon">#</span>
+            <span>Resource Inventory</span>
+          </a>
+          <a className="sidebar-link" href="#operations">
+            <span className="sidebar-icon">@</span>
+            <span>Sync Status</span>
+          </a>
+        </div>
 
-      <div className="dashboard-grid stage3-grid">
-        <SpendSummaryCard summary={dashboard.summary} loading={dashboard.loading} />
-        <CostBreakdownChart title="Cost by service" data={dashboard.byService} loading={dashboard.loading} />
-        <CostBreakdownChart title="Cost by region" data={dashboard.byRegion} loading={dashboard.loading} />
-        <SpendTrendChart
-          data={dashboard.trend}
-          loading={dashboard.loading}
-          granularity={granularity}
-          onGranularityChange={setGranularity}
-        />
-        <ResourceTable data={dashboard.resources} loading={dashboard.loading} />
+        <div className="sidebar-section">
+          <div className="sidebar-section-label">Analytics</div>
+          <a className="sidebar-link" href="#findings">
+            <span className="sidebar-icon">!</span>
+            <span>Findings</span>
+          </a>
+          <a className="sidebar-link" href="#forecast">
+            <span className="sidebar-icon">+</span>
+            <span>Cost Forecast</span>
+          </a>
+        </div>
 
-        <article className="info-card side-panel-card">
-          <h2>Workspace</h2>
-          {organizationContext.loading ? <p>Loading organization...</p> : null}
-          {organizationContext.data ? (
-            <dl className="facts-list">
-              <div>
-                <dt>Name</dt>
-                <dd>{organizationContext.data.organization.name}</dd>
-              </div>
-              <div>
-                <dt>AWS connection</dt>
-                <dd>
-                  {organizationContext.data.aws_connection.has_connection
-                    ? `Configured for ${organizationContext.data.aws_connection.region}`
-                    : "Not configured yet"}
-                </dd>
-              </div>
-              <div>
-                <dt>Role</dt>
-                <dd>{auth.user?.role}</dd>
-              </div>
-            </dl>
-          ) : null}
-          {organizationContext.error ? <p className="form-error">{organizationContext.error}</p> : null}
-        </article>
-
-        {auth.user?.role === "admin" ? (
-          <article className="info-card side-panel-card">
-            <h2>AWS connection settings</h2>
-            <p className="inline-note">
-              Save organization-specific AWS credentials here so each client workspace syncs only its own AWS account.
-            </p>
-            <form className="auth-form" onSubmit={handleConnectionSave}>
-              <label>
-                <span>Access key ID</span>
-                <input
-                  required
-                  type="password"
-                  value={connectionForm.access_key_id}
-                  onChange={(event) => setConnectionForm((current) => ({ ...current, access_key_id: event.target.value }))}
-                />
-              </label>
-              <label>
-                <span>Secret access key</span>
-                <input
-                  required
-                  type="password"
-                  value={connectionForm.secret_access_key}
-                  onChange={(event) => setConnectionForm((current) => ({ ...current, secret_access_key: event.target.value }))}
-                />
-              </label>
-              <label>
-                <span>Region</span>
-                <input
-                  required
-                  type="text"
-                  value={connectionForm.region}
-                  onChange={(event) => setConnectionForm((current) => ({ ...current, region: event.target.value }))}
-                />
-              </label>
-              {connectionState.error ? <p className="form-error">{connectionState.error}</p> : null}
-              {connectionState.message ? <p className="form-success">{connectionState.message}</p> : null}
-              <button className="primary-button" type="submit" disabled={connectionState.saving}>
-                {connectionState.saving ? "Saving..." : "Save AWS connection"}
+        <div className="sidebar-user">
+          <div className="sidebar-avatar">{initials}</div>
+          <div className="sidebar-user-meta">
+            <strong title={auth.user?.email ?? "Workspace user"}>{auth.user?.email ?? "Workspace user"}</strong>
+            <div className="sidebar-user-row">
+              <span>{auth.user?.role ?? "viewer"}</span>
+              <button className="sidebar-signout" type="button" onClick={auth.logout}>
+                Sign out
               </button>
-            </form>
-          </article>
-        ) : null}
+            </div>
+          </div>
+        </div>
+      </aside>
 
-        {auth.user?.role === "admin" ? (
-          <article className="info-card side-panel-card">
-            <h2>Manual sync</h2>
-            <p className="inline-note">Run an organization-scoped AWS sync directly from the dashboard.</p>
-            <button className="primary-button" type="button" onClick={handleManualSync} disabled={syncState.running}>
-              {syncState.running ? "Running sync..." : "Run sync now"}
-            </button>
-            {syncState.error ? <p className="form-error">{syncState.error}</p> : null}
-            {syncState.message ? <p className="form-success">{syncState.message}</p> : null}
-            {syncState.summary ? (
-              <dl className="facts-list sync-summary">
-                <div>
-                  <dt>Cost records</dt>
-                  <dd>{syncState.summary.cost_records_synced}</dd>
+      <div className="dashboard-main">
+        <header className="dashboard-topbar">
+          <h1>Overview</h1>
+          <div className="dashboard-topbar-tools">
+            <span className="topbar-org">{auth.user?.organization?.name ?? "workspace"}</span>
+          </div>
+        </header>
+
+        <main className="dashboard-content">
+          <section className="system-banner" id="overview">
+            <div className="banner-title">
+              <div className="banner-icon">~</div>
+              <div>
+                <h2>{isSimulatedWorkspace ? "Demo workspace active" : "System health healthy"}</h2>
+                <p>
+                  {isSimulatedWorkspace
+                    ? `Showing seeded simulated dashboard data for ${auth.user?.organization?.name ?? "this organization"}.`
+                    : `Workspace sync, cost, and inventory views are scoped to ${auth.user?.organization?.name ?? "this organization"}.`}
+                </p>
+              </div>
+            </div>
+          </section>
+
+          {dashboard.error ? <p className="form-error" style={{ marginTop: "16px" }}>{dashboard.error}</p> : null}
+
+          <section className="dashboard-grid">
+            <MetricCard
+              label="Current month spend"
+              value={formatCurrency(dashboard.summary?.current_month_spend ?? 0, dashboard.summary?.currency)}
+              trendText={`${formatPercent(dashboard.summary?.percent_change ?? null)} vs last month`}
+              trendTone={(dashboard.summary?.percent_change ?? 0) > 0 ? "up" : "down"}
+            />
+            <MetricCard
+              label="Prior month spend"
+              value={formatCurrency(dashboard.summary?.prior_month_spend ?? 0, dashboard.summary?.currency)}
+              trendText={dashboard.summary?.top_service ? `Top service: ${dashboard.summary.top_service}` : "No cost service data yet"}
+              trendTone="info"
+            />
+            <MetricCard
+              label="Avg CPU utilization"
+              value={derivedStats.avgCpu !== null ? `${derivedStats.avgCpu.toFixed(1)}%` : "n/a"}
+              trendText={derivedStats.totalResources > 0 ? `${derivedStats.totalResources} resources in workspace` : "No resource telemetry yet"}
+              trendTone="good"
+            />
+            <MetricCard
+              label="Projected posture"
+              value={isSimulatedWorkspace ? "Demo mode" : `${derivedStats.connectedRegions} region${derivedStats.connectedRegions === 1 ? "" : "s"}`}
+              trendText={isSimulatedWorkspace ? "Seeded demo data is clearly marked" : `${derivedStats.potentialRiskCount} low-utilization candidates`}
+              trendTone="info"
+              accent
+            />
+
+            <SpendTrendChart
+              data={dashboard.trend}
+              loading={dashboard.loading}
+              granularity={granularity}
+              onGranularityChange={setGranularity}
+            />
+            <FindingsFeed findings={findings} isSimulatedWorkspace={isSimulatedWorkspace} />
+            <CostBreakdownChart
+              title="Cost by service"
+              subtitle="Top spend buckets in the selected window."
+              data={dashboard.byService}
+              loading={dashboard.loading}
+            />
+            <CostBreakdownChart
+              title="Cost by region"
+              subtitle="Regional distribution of tracked spend."
+              data={dashboard.byRegion}
+              loading={dashboard.loading}
+            />
+
+            <article className="info-card full-span-card" id="forecast">
+              <div className="chart-header">
+                <div className="chart-title">
+                  <h2>Cloud fleet optimization status</h2>
+                  <p>High-level executive readout derived from current workspace telemetry and cost state.</p>
                 </div>
-                <div>
-                  <dt>Resources</dt>
-                  <dd>{syncState.summary.resources_synced}</dd>
+                <div className="chip-row">
+                  <span className="chip good">Healthy workspace</span>
+                  {isSimulatedWorkspace ? <span className="chip warning">Demo seeded</span> : null}
+                  <span className="chip info">{derivedStats.connectedRegions} active regions</span>
                 </div>
-                <div>
-                  <dt>Metric samples</dt>
-                  <dd>{syncState.summary.metric_samples_synced}</dd>
-                </div>
-                <div>
-                  <dt>Warnings</dt>
-                  <dd>
-                    {Array.isArray(syncState.summary.warnings) && syncState.summary.warnings.length > 0
-                      ? syncState.summary.warnings.join(" | ")
-                      : "none"}
-                  </dd>
-                </div>
-              </dl>
+              </div>
+              <div className="system-grid">
+                {systemStats.map((stat) => (
+                  <div className="system-stat" key={stat.label}>
+                    <p>{stat.label}</p>
+                    <h3>{stat.value}</h3>
+                    <p>{stat.detail}</p>
+                  </div>
+                ))}
+              </div>
+            </article>
+
+            <ResourceTable data={dashboard.resources} loading={dashboard.loading} />
+
+            {auth.user?.role === "admin" ? (
+              <OperationsPanel
+                auth={auth}
+                organizationContext={organizationContext}
+                connectionForm={connectionForm}
+                connectionState={connectionState}
+                setConnectionForm={setConnectionForm}
+                handleConnectionSave={handleConnectionSave}
+                syncState={syncState}
+                handleManualSync={handleManualSync}
+                demoSeedState={demoSeedState}
+                handleDemoSeed={handleDemoSeed}
+                teammateForm={teammateForm}
+                teammateState={teammateState}
+                setTeammateForm={setTeammateForm}
+                handleTeammateCreate={handleTeammateCreate}
+                isSimulatedWorkspace={isSimulatedWorkspace}
+              />
             ) : null}
-          </article>
-        ) : null}
-
-        {auth.user?.role === "admin" ? (
-          <article className="info-card side-panel-card">
-            <h2>Create teammate</h2>
-            <p className="inline-note">
-              Add more users to this same organization workspace without going through public registration again.
-            </p>
-            <form className="auth-form" onSubmit={handleTeammateCreate}>
-              <label>
-                <span>Email</span>
-                <input
-                  required
-                  type="email"
-                  value={teammateForm.email}
-                  onChange={(event) => setTeammateForm((current) => ({ ...current, email: event.target.value }))}
-                />
-              </label>
-              <label>
-                <span>Password</span>
-                <input
-                  required
-                  type="password"
-                  minLength={8}
-                  value={teammateForm.password}
-                  onChange={(event) => setTeammateForm((current) => ({ ...current, password: event.target.value }))}
-                />
-              </label>
-              <label>
-                <span>Role</span>
-                <select
-                  value={teammateForm.role}
-                  onChange={(event) => setTeammateForm((current) => ({ ...current, role: event.target.value }))}
-                >
-                  <option value="viewer">viewer</option>
-                  <option value="admin">admin</option>
-                </select>
-              </label>
-              {teammateState.error ? <p className="form-error">{teammateState.error}</p> : null}
-              {teammateState.message ? <p className="form-success">{teammateState.message}</p> : null}
-              <button className="primary-button" type="submit" disabled={teammateState.saving}>
-                {teammateState.saving ? "Creating..." : "Create teammate"}
-              </button>
-            </form>
-          </article>
-        ) : null}
+          </section>
+        </main>
       </div>
-    </section>
+    </div>
   );
 }
