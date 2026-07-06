@@ -19,14 +19,13 @@ resources.
 
 ## 2. Current Status
 
-- Current stage: Stage 4 - Waste detection, first implementation pass in progress
+- Current stage: Stage 4 - Waste detection and live billing dashboard pass completed
 - Last completed milestone: 2026-06-29 - Stage 1 auth, RBAC, and manual verification completed
 - Known broken / in-progress things right now:
-  - Stage 2 sync code has been verified for inventory and CloudWatch metric collection, but Cost Explorer data is still not returning usable spend rows from the sandbox account.
   - Stage 3 dashboard queries and UI are working with org-scoped data, including opt-in demo seeding, real-sync cleanup behavior, and role-aware admin controls.
-  - Cost charts may legitimately be empty until Cost Explorer data becomes available for the organization's AWS account or the date range includes billable usage.
+  - Stage 4 live billing sync is now writing real Cost Explorer rows for the tested AWS account, and the spend cards plus service/region/trend charts are rendering from PostgreSQL.
   - Resource inventory intentionally mixes inventory-only rows with EC2 metric-backed rows, so the table now labels telemetry availability instead of showing repeated `n/a` values for non-EC2 resources.
-  - Stage 4 now includes stored findings, evidence panels, filters, resolved-history support, a standalone in-app AWS connection guide with embedded policy JSON, and scroll-aware sidebar navigation; the next major milestone is Stage 5 recommendations and approval workflows.
+  - Stage 4 now includes stored findings, evidence panels, filters, resolved-history support, a standalone in-app AWS connection guide with embedded policy JSON, scroll-aware sidebar navigation, and verified current-month spend ingestion; the next major milestone is Stage 5 recommendations and approval workflows.
 
 ## 3. Architecture Summary
 
@@ -230,6 +229,31 @@ more stable long-window decision logic. This helps users understand why a
 always includes a plain-English note, even when recent CPU is still below the
 idle threshold, so the result does not show an empty note field.
 
+### 2026-07-06 - Cost Explorer grouped spend and forecast must fail independently
+
+When live AWS billing data finally became available, we found that grouped
+Cost Explorer `get_cost_and_usage` calls could succeed while `get_cost_forecast`
+still returned an availability warning. Treating all Cost Explorer work as one
+block caused valid spend rows to be discarded any time forecast was unavailable.
+The sync now handles grouped spend and forecast independently so real billing
+data can populate the dashboard as soon as AWS returns it.
+
+### 2026-07-06 - Billing rows must be normalized before PostgreSQL upsert
+
+Once spend rows started arriving, the bulk insert path exposed two data-shape
+issues: repeated grouped buckets could collapse to the same natural key at the
+stored precision, and asyncpg requires real Python `date` objects for `DATE`
+columns rather than raw ISO strings. The sync layer now normalizes cost rows
+before upsert, merges duplicate natural keys safely, rounds amounts to the
+stored precision, and converts ISO date strings into Python `date` values.
+
+### 2026-07-06 - Match synced billing totals to the AWS console validation flow
+
+Manual validation compared the app against AWS Cost Explorer with refunds and
+credits excluded. To reduce demo confusion, the backend now applies the same
+refund-and-credit exclusion filter during Cost Explorer sync so the dashboard
+more closely matches the totals visible in the AWS console.
+
 ## 5. Environment Variables / Secrets Reference
 
 - `DATABASE_URL`
@@ -395,6 +419,33 @@ idle threshold, so the result does not show an empty note field.
 - How to verify it's still fixed:
   - Rebuild the frontend, reload the dashboard, and confirm the red JSON parse error disappears.
   - Confirm the workspace, AWS connection, manual sync, and teammate cards render at readable widths.
+
+### 2026-07-06 - Live Cost Explorer sync inserted no billing rows even after AWS showed spend
+
+- Symptom:
+  - AWS Cost Explorer console showed real July spend, but the app still displayed `$0.00` and Postgres had zero rows in `cost_records`.
+- Root cause:
+  - The sync wrapped grouped spend fetches and forecast fetches in one shared `try` block. If forecast returned a Cost Explorer availability warning, the code discarded otherwise valid grouped spend rows and saved nothing.
+- Fix:
+  - Split grouped spend sync and forecast sync into separate error-handling paths so grouped spend can still be persisted when forecast is unavailable.
+  - Added the same refund-and-credit exclusion filter used in manual AWS console validation.
+- How to verify it's still fixed:
+  - Run `POST /sync/run` or click `Run sync now` after Cost Explorer is returning spend.
+  - Confirm `cost_records_synced` is greater than `0` and the dashboard shows current-month spend plus service and region charts.
+
+### 2026-07-06 - Cost record upsert crashed on live billing data
+
+- Symptom:
+  - `POST /sync/run` returned `500` once live spend data started arriving.
+  - First failure mode was a PostgreSQL upsert conflict on `uq_cost_records_natural_key`.
+  - Second failure mode was `asyncpg.exceptions.DataError: invalid input for query argument ... 'str' object has no attribute 'toordinal'`.
+- Root cause:
+  - Multiple grouped billing rows could collapse to the same natural key at the stored precision, and the sync layer was still passing ISO date strings instead of Python `date` objects into the asyncpg bulk insert.
+- Fix:
+  - Normalized and merged cost payloads by natural key before upsert, rounded amounts to the stored precision, and converted ISO date strings into Python `date` values before insert.
+- How to verify it's still fixed:
+  - Rebuild the backend and rerun `Run sync now`.
+  - Confirm the sync completes without a cost-record insert traceback and `cost_records_synced` remains non-zero.
 
 ## 7. Change Log (one entry per commit)
 
@@ -608,13 +659,31 @@ idle threshold, so the result does not show an empty note field.
 - Anything the next session needs to know:
   - If the sidebar highlight drifts again, check whether the page section order changed without updating the sidebar section order.
 
+### 2026-07-06 - Stage 4 live billing sync verification
+- What changed:
+  - Fixed Cost Explorer sync so grouped spend rows are persisted even when forecast is unavailable.
+  - Added refund-and-credit exclusions to align dashboard totals with the AWS Cost Explorer console validation flow.
+  - Normalized cost payloads before upsert and converted ISO cost dates into Python `date` objects so live billing inserts succeed.
+  - Updated dashboard currency formatting so tiny positive amounts show more honestly instead of looking like hard zero.
+- Why:
+  - Complete Stage 4 with verified live billing data instead of only inventory, metrics, and findings.
+- Files touched:
+  - Cost Explorer service, sync service, dashboard service, frontend dashboard formatting, Docker Compose health check, docs, and project memory.
+- Manual test performed:
+  - Verified the AWS Cost Explorer API returned real July 2026 spend for `org1`.
+  - Reproduced the zero-row billing bug in Postgres, then fixed the sync path and insert path.
+  - Verified the dashboard now shows current-month spend, trend, by-service, and by-region charts from live AWS-backed rows.
+- Anything the next session needs to know:
+  - Stage 4 is now manually verified end-to-end for `org1`.
+  - The next major milestone is Stage 5 recommendations, savings estimates, and action workflow design.
+
 ## 8. Manual Test Checklist Status
 
 - Stage 0: base Docker/frontend flow confirmed during local setup; AWS setup still being completed separately for Stage 2 readiness
 - Stage 1: passed on 2026-06-29
-- Stage 2: partially verified on 2026-07-01; resource inventory and metrics confirmed, waiting on Cost Explorer readiness for full gate coverage
-- Stage 3: passed for multitenant dashboard, real inventory sync, viewer/admin separation, demo seeding behavior, and mixed-resource inventory handling; spend charts remain dependent on AWS Cost Explorer data availability
-- Stage 4: first code pass landed on 2026-07-05; backend compile passed, manual migration and UI verification still pending
+- Stage 2: passed for resource inventory, CloudWatch metric sync, and live Cost Explorer billing persistence
+- Stage 3: passed for multitenant dashboard, real inventory sync, viewer/admin separation, demo seeding behavior, mixed-resource inventory handling, and AWS onboarding flow
+- Stage 4: passed with stored findings, evidence panels, filters, resolved-history support, and verified live billing dashboard data
 - Multitenancy pivot: landed; org-scoped auth, AWS connections, sync data, teammate creation, and dashboard views are implemented
 
 ## 9. AWS Account / Sandbox Notes
@@ -627,8 +696,7 @@ idle threshold, so the result does not show an empty note field.
   notes that this setting does not control access to the Billing and Cost
   Management SDK APIs themselves. Keep that distinction in mind when Stage 2
   service integrations are implemented.
-- The sandbox now has Cost Explorer enabled, but it was enabled recently enough
-  that Stage 2 should expect transient "data not ready yet" behavior.
+- The sandbox now has Cost Explorer enabled and returning live spend data for July 2026.
 - Initial manual sync result on 2026-07-01:
   - `cost_records_synced: 0`
   - `resources_synced: 0`
@@ -641,5 +709,8 @@ idle threshold, so the result does not show an empty note field.
   - `metric_samples_synced: 3`
   - `forecast_points: 0`
   - warning: Cost Explorer data not available yet
+- Live billing verification on 2026-07-06:
+  - AWS Cost Explorer console showed about `$10.07` for July 2026 with refunds and credits excluded.
+  - The app now syncs and stores live cost rows for `org1` and renders current-month spend, trend, by-service, and by-region charts from PostgreSQL.
 - Multitenancy note:
   - The legacy sandbox data belongs to the default backfilled organization until separate organization-specific AWS connections are configured.

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
-from decimal import Decimal
+from datetime import UTC, date, datetime
+from decimal import Decimal, ROUND_HALF_UP
 
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,11 +19,51 @@ from app.services.aws.resource_inventory import get_resource_inventory
 from app.services.demo_seed import clear_demo_seed_workspace
 from app.services.findings_service import run_findings_detection
 
+_COST_AMOUNT_SCALE = Decimal("0.0001")
+
+
+def _normalize_cost_payloads(payloads: list[dict]) -> list[dict]:
+    merged: dict[tuple[str, str, str, str], dict] = {}
+
+    for payload in payloads:
+        payload_date = payload["date"]
+        if isinstance(payload_date, str):
+            payload_date = date.fromisoformat(payload_date)
+
+        key = (
+            payload_date.isoformat(),
+            payload.get("service", "") or "",
+            payload.get("region", "") or "",
+            payload.get("usage_type", "") or "",
+            payload.get("account_id", "") or "",
+        )
+        amount = Decimal(str(payload["amount"])).quantize(_COST_AMOUNT_SCALE, rounding=ROUND_HALF_UP)
+
+        if key not in merged:
+            merged[key] = {
+                **payload,
+                "date": payload_date,
+                "service": key[1],
+                "region": key[2],
+                "usage_type": key[3],
+                "account_id": key[4],
+                "amount": amount,
+            }
+            continue
+
+        merged[key]["amount"] = (Decimal(str(merged[key]["amount"])) + amount).quantize(
+            _COST_AMOUNT_SCALE,
+            rounding=ROUND_HALF_UP,
+        )
+
+    return list(merged.values())
+
 
 async def _upsert_cost_records(db: AsyncSession, payloads: list[dict], synced_at: datetime, organization_id: int) -> int:
     if not payloads:
         return 0
 
+    normalized_payloads = _normalize_cost_payloads(payloads)
     values = [
         {
             **payload,
@@ -31,7 +71,7 @@ async def _upsert_cost_records(db: AsyncSession, payloads: list[dict], synced_at
             "amount": Decimal(str(payload["amount"])),
             "synced_at": synced_at,
         }
-        for payload in payloads
+        for payload in normalized_payloads
     ]
     statement = insert(CostRecord).values(values)
     statement = statement.on_conflict_do_update(
@@ -108,12 +148,19 @@ async def run_sync(db: AsyncSession, organization: Organization) -> dict:
     try:
         service_costs = get_cost_grouped_by_service(settings.aws_cost_lookback_days, credentials)
         region_costs = get_cost_grouped_by_region(settings.aws_cost_lookback_days, credentials)
-        forecast = get_cost_forecast(credentials)
     except AWSServiceError as error:
         if error.service == "Cost Explorer":
             summary["warnings"].append(str(error))
             service_costs = []
             region_costs = []
+        else:
+            raise
+
+    try:
+        forecast = get_cost_forecast(credentials)
+    except AWSServiceError as error:
+        if error.service == "Cost Explorer":
+            summary["warnings"].append(str(error))
             forecast = {"ForecastResultsByTime": []}
         else:
             raise

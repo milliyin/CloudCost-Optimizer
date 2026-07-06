@@ -135,3 +135,28 @@ The dashboard started to accumulate enough sections that a static highlighted
 with the sidebar order and made the top title and active nav state follow the
 actual section in view while scrolling. The standalone Connect AWS section was
 also moved into that same ordered structure so the navigation feels coherent.
+
+## 2026-07-06 - Cost sync should degrade per Cost Explorer capability, not fail as one block
+
+Once live AWS spend became available, we found that `get_cost_and_usage`
+responses were succeeding while `get_cost_forecast` could still fail or return
+an availability warning. Treating all Cost Explorer calls as one unit caused
+the sync to drop valid spend rows just because forecast was unavailable. The
+sync flow now handles grouped cost data and forecast independently so the
+dashboard can show real spend as soon as AWS exposes it, even if forecast lags.
+
+## 2026-07-06 - Normalize billing rows before upsert and store real date objects
+
+When live billing data finally arrived, repeated grouped buckets could still
+collapse to the same natural key from the database's perspective, and the
+asyncpg insert path also required Python `date` objects rather than raw ISO
+strings. The sync layer now normalizes cost payloads before bulk upsert,
+merges duplicate keys safely, rounds them to the stored precision, and converts
+ISO dates into real Python `date` instances before writing to PostgreSQL.
+
+## 2026-07-06 - Match dashboard billing totals more closely to the AWS console
+
+Manual validation compared the app against the AWS Cost Explorer console using
+refund and credit exclusions. To reduce confusing differences during demos, the
+backend now applies the same exclusion filter during Cost Explorer sync so the
+dashboard totals and breakdowns better match what the user sees in AWS.

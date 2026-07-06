@@ -18,7 +18,7 @@ gate at the end of each stage.
 2. Run:
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 3. Open `http://localhost:8000/health` to verify the backend.
@@ -35,6 +35,7 @@ The project currently includes:
 - Multi-tenant foundations with organization-owned users, organization-specific AWS connections, and tenant-scoped synced data
 - Stage 3 interactive dashboard with org-scoped spend summary, cost charts, trend view, findings, resource inventory, admin sync controls, and opt-in demo seed loading
 - Stage 4 initial findings pipeline with stored waste/risk detections, evidence-backed rules, and a dashboard evidence panel
+- Live Cost Explorer billing sync for current AWS spend, including service and region breakdowns in the dashboard
 
 Current session behavior:
 
@@ -46,6 +47,8 @@ Current session behavior:
 - The dashboard now includes an in-app AWS connection guide so admins know how to create the IAM user, generate keys, choose a region, and run the first sync
 - The AWS guide also includes the copy-pasteable IAM policy JSON needed for the app's current read-only sync scope
 - The dashboard navigation now follows the actual page section order and highlights the active section while scrolling
+- Cost sync now preserves valid spend rows even if the forecast API is unavailable for the same account
+- The billing sync now excludes refunds and credits to better match the AWS Cost Explorer console totals used during manual validation
 
 Current inventory coverage includes:
 
@@ -67,6 +70,7 @@ AWS sync notes:
 
 - Cost Explorer can take about 24 hours after first enablement to begin returning data
 - The sync layer is designed to keep resource inventory and CloudWatch ingestion working even when Cost Explorer data is still unavailable
+- Once Cost Explorer is ready, manual sync now persists daily cost rows into PostgreSQL and powers the current-month spend, trend, by-service, and by-region charts
 - Non-EC2 resources intentionally appear as inventory-only rows in the dashboard; only EC2 rows currently show CPU and network telemetry columns
 - Findings are recalculated as part of each sync and currently cover idle EC2 instances, underutilized EC2 instances, sustained high-CPU EC2 mismatches, unattached EBS volumes, and unassociated Elastic IPs
 - Idle EC2 findings now include both the long sync window and a short recent comparison window, with plain-English evidence text explaining whether recent CPU stayed low, rose briefly, or had no recent samples

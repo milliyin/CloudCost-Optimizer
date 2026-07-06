@@ -20,6 +20,13 @@ def _resolve_date_range(start: date | None, end: date | None) -> tuple[date, dat
     return resolved_start, resolved_end
 
 
+def _canonical_cost_filters(current_user: User) -> tuple:
+    return (
+        CostRecord.organization_id == current_user.organization_id,
+        CostRecord.service != "",
+    )
+
+
 async def get_spend_summary(db: AsyncSession, current_user: User) -> SpendSummaryResponse:
     today = date.today()
     current_month_start = today.replace(day=1)
@@ -34,7 +41,7 @@ async def get_spend_summary(db: AsyncSession, current_user: User) -> SpendSummar
                 func.min(CostRecord.currency).label("currency"),
             )
             .where(
-                CostRecord.organization_id == current_user.organization_id,
+                *_canonical_cost_filters(current_user),
                 CostRecord.date >= prior_month_start,
                 CostRecord.date <= today,
             )
@@ -56,10 +63,9 @@ async def get_spend_summary(db: AsyncSession, current_user: User) -> SpendSummar
         await db.execute(
             select(CostRecord.service, func.sum(CostRecord.amount).label("amount"))
             .where(
-                CostRecord.organization_id == current_user.organization_id,
+                *_canonical_cost_filters(current_user),
                 CostRecord.date >= current_month_start,
                 CostRecord.date <= today,
-                CostRecord.service != "",
             )
             .group_by(CostRecord.service)
             .order_by(func.sum(CostRecord.amount).desc())
@@ -99,6 +105,7 @@ async def get_cost_groups(
                 CostRecord.date >= resolved_start,
                 CostRecord.date <= resolved_end,
                 column != "",
+                (CostRecord.service != "" if dimension == "service" else CostRecord.region != ""),
             )
             .group_by(column)
             .order_by(func.sum(CostRecord.amount).desc())
@@ -128,7 +135,7 @@ async def get_spend_trend(
         await db.execute(
             select(CostRecord.date, func.sum(CostRecord.amount).label("amount"), func.min(CostRecord.currency).label("currency"))
             .where(
-                CostRecord.organization_id == current_user.organization_id,
+                *_canonical_cost_filters(current_user),
                 CostRecord.date >= resolved_start,
                 CostRecord.date <= resolved_end,
             )

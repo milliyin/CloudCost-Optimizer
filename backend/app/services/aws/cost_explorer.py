@@ -9,6 +9,15 @@ from app.services.aws.common import translate_aws_error
 from app.services.aws.credentials import AWSCredentials
 from app.services.aws.retry import aws_retry
 
+_EXCLUDE_REFUNDS_AND_CREDITS = {
+    "Not": {
+        "Dimensions": {
+            "Key": "RECORD_TYPE",
+            "Values": ["Refund", "Credit"],
+        }
+    }
+}
+
 
 def _default_start_end(lookback_days: int) -> tuple[str, str]:
     end_date = date.today() + timedelta(days=1)
@@ -29,6 +38,7 @@ def _get_cost_and_usage(group_key: str, lookback_days: int, credentials: AWSCred
         Granularity="DAILY",
         Metrics=["UnblendedCost"],
         GroupBy=[{"Type": "DIMENSION", "Key": group_key}],
+        Filter=_EXCLUDE_REFUNDS_AND_CREDITS,
     )
 
 
@@ -95,6 +105,7 @@ def get_cost_forecast(credentials: AWSCredentials) -> dict:
             Metric="UNBLENDED_COST",
             Granularity="DAILY",
             PredictionIntervalLevel=80,
+            Filter=_EXCLUDE_REFUNDS_AND_CREDITS,
         )
     except (ClientError, BotoCoreError) as error:
         raise translate_aws_error(error, service="Cost Explorer") from error

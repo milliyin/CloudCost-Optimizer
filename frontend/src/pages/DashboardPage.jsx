@@ -43,11 +43,17 @@ const findingTypeOptions = [
 ];
 
 function formatCurrency(amount, currency = "USD") {
+  const numericAmount = Number(amount ?? 0);
+
+  if (numericAmount !== 0 && Math.abs(numericAmount) < 0.01) {
+    return numericAmount > 0 ? "<$0.01" : ">-$0.01";
+  }
+
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
     maximumFractionDigits: 2,
-  }).format(amount ?? 0);
+  }).format(numericAmount);
 }
 
 function formatPercent(value) {
