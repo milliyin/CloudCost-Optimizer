@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Cloud Intelligence - Overview</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-secondary": "#ffffff",
+                    "primary-fixed-dim": "#c3c0ff",
+                    "on-surface": "#1b1b24",
+                    "on-secondary-fixed": "#000767",
+                    "on-primary-container": "#dad7ff",
+                    "on-secondary-container": "#17228f",
+                    "primary": "#3525cd",
+                    "tertiary-container": "#7d42b6",
+                    "primary-container": "#4f46e5",
+                    "on-secondary-fixed-variant": "#2f3aa3",
+                    "on-primary-fixed": "#0f0069",
+                    "secondary-fixed-dim": "#bdc2ff",
+                    "error-container": "#ffdad6",
+                    "outline": "#777587",
+                    "surface-container-low": "#f5f2ff",
+                    "surface-tint": "#4d44e3",
+                    "on-tertiary-fixed": "#2c0051",
+                    "on-surface-variant": "#464555",
+                    "surface-container-highest": "#e4e1ee",
+                    "inverse-on-surface": "#f3effc",
+                    "surface-container-high": "#eae6f4",
+                    "on-tertiary-fixed-variant": "#62259b",
+                    "tertiary-fixed-dim": "#ddb8ff",
+                    "tertiary": "#63279c",
+                    "on-tertiary": "#ffffff",
+                    "primary-fixed": "#e2dfff",
+                    "secondary-container": "#8792fe",
+                    "secondary": "#4953bc",
+                    "secondary-fixed": "#e0e0ff",
+                    "surface-dim": "#dcd8e5",
+                    "surface-bright": "#fcf8ff",
+                    "background": "#fcf8ff",
+                    "error": "#ba1a1a",
+                    "surface-container": "#f0ecf9",
+                    "on-background": "#1b1b24",
+                    "on-primary": "#ffffff",
+                    "on-error": "#ffffff",
+                    "surface-variant": "#e4e1ee",
+                    "inverse-primary": "#c3c0ff",
+                    "tertiary-fixed": "#f0dbff",
+                    "on-error-container": "#93000a",
+                    "on-primary-fixed-variant": "#3323cc",
+                    "inverse-surface": "#302f39",
+                    "outline-variant": "#c7c4d8",
+                    "surface-container-lowest": "#ffffff",
+                    "surface": "#fcf8ff",
+                    "on-tertiary-container": "#ebd1ff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "element-gap": "12px",
+                    "card-gap": "16px",
+                    "page-margin": "24px",
+                    "container-padding": "24px",
+                    "sidebar-width": "260px"
+            },
+            "fontFamily": {
+                    "label-md": ["Inter"],
+                    "display-metric-mobile": ["Inter"],
+                    "headline-sm": ["Inter"],
+                    "label-sm": ["Inter"],
+                    "body-md": ["Inter"],
+                    "display-metric": ["Inter"]
+            },
+            "fontSize": {
+                    "label-md": ["14px", {"lineHeight": "16px", "fontWeight": "500"}],
+                    "display-metric-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "800"}],
+                    "headline-sm": ["18px", {"lineHeight": "24px", "fontWeight": "600"}],
+                    "label-sm": ["12px", {"lineHeight": "14px", "fontWeight": "500"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "display-metric": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "800"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #F8F8FC; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .pulse-green { animation: pulse-green 2s infinite; }
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            70% { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
+        .bento-card {
+            background-color: #ffffff;
+            border: 1px solid #E2E8F0;
+            box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.04);
+            border-radius: 12px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .bento-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0px 8px 30px rgba(0, 0, 0, 0.06);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background antialiased overflow-x-hidden">
+<!-- Predicted Sidebar Component -->
+<aside class="fixed left-0 top-0 h-full w-[260px] bg-surface-container-lowest dark:bg-surface-container-low border-r border-outline-variant dark:border-outline shadow-sm flex flex-col p-4 gap-2 z-50">
+<div class="flex flex-col gap-1 mb-6 px-2">
+<span class="font-headline-sm text-headline-sm font-extrabold text-primary dark:text-primary-fixed-dim">Cloud Intelligence</span>
+<span class="text-[10px] uppercase tracking-widest font-bold text-outline">FinOps Management</span>
+</div>
+<nav class="flex flex-col gap-1">
+<!-- Active: Overview -->
+<a class="flex items-center gap-3 px-3 py-2.5 bg-primary/10 text-primary dark:bg-primary-container dark:text-on-primary-container rounded-lg font-bold transition-all duration-150" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<span class="font-label-md text-label-md">Overview</span>
+</a>
+<div class="mt-4 mb-1 px-3 text-[10px] font-bold text-outline uppercase tracking-widest">Resources</div>
+<a class="flex items-center gap-3 px-3 py-2.5 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-container transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-label-md text-label-md">Resource Inventory</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-container transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">sync</span>
+<span class="font-label-md text-label-md">Sync Status</span>
+</a>
+<div class="mt-4 mb-1 px-3 text-[10px] font-bold text-outline uppercase tracking-widest">Analytics</div>
+<a class="flex items-center gap-3 px-3 py-2.5 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-container transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">search_insights</span>
+<span class="font-label-md text-label-md">Findings</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-container transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">lightbulb</span>
+<span class="font-label-md text-label-md">Recommendations</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-container transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">trending_up</span>
+<span class="font-label-md text-label-md">Cost Forecast</span>
+</a>
+<div class="mt-4 mb-1 px-3 text-[10px] font-bold text-outline uppercase tracking-widest">Governance</div>
+<a class="flex items-center gap-3 px-3 py-2.5 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-container transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">notifications_active</span>
+<span class="font-label-md text-label-md">Budget Alerts</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high dark:hover:bg-surface-container transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">data_exploration</span>
+<span class="font-label-md text-label-md">Reports &amp; Exports</span>
+</a>
+</nav>
+<div class="mt-auto pt-6 px-2">
+<div class="flex items-center gap-3 p-2 bg-surface-container-high rounded-xl">
+<div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold">JD</div>
+<div class="flex flex-col overflow-hidden">
+<span class="font-label-md text-label-md truncate">John Doe</span>
+<span class="text-[11px] text-outline truncate">CFO Analyst</span>
+</div>
+</div>
+</div>
+</aside>
+<!-- Predicted TopAppBar Component -->
+<header class="fixed top-0 right-0 h-16 ml-[260px] w-[calc(100%-260px)] bg-surface dark:bg-background border-b border-outline-variant dark:border-outline flex justify-between items-center px-page-margin z-40">
+<div class="flex items-center gap-4">
+<h1 class="font-headline-sm text-headline-sm font-bold text-on-surface dark:text-on-surface">Overview</h1>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative w-80">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant">search</span>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg pl-10 pr-4 py-2 text-label-md focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all" placeholder="Search resources, costs, findings..." type="text"/>
+</div>
+<div class="flex items-center gap-4 text-on-surface-variant">
+<button class="material-symbols-outlined hover:text-primary transition-colors cursor-pointer">notifications</button>
+<button class="material-symbols-outlined hover:text-primary transition-colors cursor-pointer">settings</button>
+<div class="h-6 w-[1px] bg-outline-variant mx-1"></div>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant">
+<img class="w-full h-full object-cover" data-alt="Professional corporate headshot of a middle-aged male executive with glasses, wearing a sharp navy blue suit, set against a blurred modern office background with soft indigo and white lighting accents. High resolution, professional studio photography style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAndJDg2F9B_K2JzETmiTVAn4KfjnQ21uKCRMZj43yDompFS4G_QniEaUnf9d_Olc_ZLekkm1dJ-RhsXYDeGufNmzDmYeR1ITJGr7z2rmhqWtqVJriCQOKXkHCCrs1PcFJ-uT7l3pA5aSVxaqhGvnlu5ByqSKs-GdPnNRJu3jcFAE97gkVqSeffofaSXx1erk1_T7X3lG8KXeZTv4822lANNuiY2778V5242P_tOOtJ1hEzA376XFouTg"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-[260px] pt-24 px-page-margin pb-12 min-h-screen">
+<!-- Sync Banner -->
+<div class="mb-8 p-4 bg-primary text-white rounded-xl shadow-lg flex items-center justify-between overflow-hidden relative group">
+<div class="flex items-center gap-4 z-10">
+<div class="p-2 bg-white/20 rounded-lg">
+<span class="material-symbols-outlined">sync</span>
+</div>
+<div>
+<p class="font-bold">System Health Healthy</p>
+<p class="text-white/80 text-label-sm">Last synced 4 minutes ago — 1,242 resources scanned across 4 cloud regions.</p>
+</div>
+</div>
+<button class="px-5 py-2 bg-white text-primary font-bold rounded-lg text-label-md hover:bg-opacity-90 active:scale-95 transition-all z-10">
+                See Findings
+            </button>
+<!-- Atmospheric glass element -->
+<div class="absolute top-[-50%] right-[-10%] w-64 h-64 bg-white/10 rounded-full blur-3xl pointer-events-none group-hover:bg-white/20 transition-all duration-700"></div>
+</div>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-12 gap-card-gap">
+<!-- Metric Cards (4 x span-3) -->
+<div class="col-span-12 md:col-span-3 bento-card p-container-padding flex flex-col justify-between">
+<div>
+<p class="text-on-surface-variant font-label-md mb-2">Current Month Spend</p>
+<h2 class="font-display-metric text-display-metric text-on-surface">$42,850</h2>
+</div>
+<div class="flex items-center gap-1 mt-4 text-orange-600 font-bold">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+<span class="text-label-sm">+12.4% vs last month</span>
+</div>
+</div>
+<div class="col-span-12 md:col-span-3 bento-card p-container-padding flex flex-col justify-between">
+<div>
+<p class="text-on-surface-variant font-label-md mb-2">Estimated Monthly Waste</p>
+<h2 class="font-display-metric text-display-metric text-on-surface">$8,420</h2>
+</div>
+<div class="flex items-center gap-1 mt-4 text-green-600 font-bold">
+<span class="material-symbols-outlined text-sm">trending_down</span>
+<span class="text-label-sm">-5.2% vs last month</span>
+</div>
+</div>
+<div class="col-span-12 md:col-span-3 bento-card p-container-padding flex flex-col justify-between">
+<div>
+<p class="text-on-surface-variant font-label-md mb-2">Avg CPU Utilization</p>
+<h2 class="font-display-metric text-display-metric text-on-surface">24.1%</h2>
+</div>
+<div class="flex items-center gap-1 mt-4 text-green-600 font-bold">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+<span class="text-label-sm">+2.3% vs last week</span>
+</div>
+</div>
+<div class="col-span-12 md:col-span-3 bento-card p-container-padding flex flex-col justify-between border-l-4 border-l-primary">
+<div>
+<p class="text-on-surface-variant font-label-md mb-2">Projected Spend</p>
+<h2 class="font-display-metric text-display-metric text-on-surface">$642,850</h2>
+</div>
+<div class="flex items-center gap-2 mt-4 text-primary font-bold">
+<span class="material-symbols-outlined text-sm">check_circle</span>
+<span class="text-label-sm">Budget on track</span>
+</div>
+</div>
+<!-- Central Chart Section (span-8) -->
+<div class="col-span-12 md:col-span-8 bento-card p-container-padding">
+<div class="flex items-center justify-between mb-8">
+<div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Budget vs Actual Spend</h3>
+<p class="text-label-sm text-outline">Fiscal Year 2024 Performance</p>
+</div>
+<div class="flex items-center gap-4">
+<div class="bg-surface-container flex rounded-lg p-1">
+<button class="px-4 py-1 text-label-sm font-bold bg-white text-primary rounded shadow-sm">6M</button>
+<button class="px-4 py-1 text-label-sm text-outline hover:text-primary transition-colors">1Y</button>
+</div>
+</div>
+</div>
+<div class="flex gap-4 mb-6 border-b border-outline-variant overflow-x-auto">
+<button class="pb-3 px-2 text-label-md font-bold text-primary border-b-2 border-primary whitespace-nowrap">All Services</button>
+<button class="pb-3 px-2 text-label-md text-outline hover:text-primary whitespace-nowrap">EC2</button>
+<button class="pb-3 px-2 text-label-md text-outline hover:text-primary whitespace-nowrap">RDS</button>
+<button class="pb-3 px-2 text-label-md text-outline hover:text-primary whitespace-nowrap">S3</button>
+<button class="pb-3 px-2 text-label-md text-outline hover:text-primary whitespace-nowrap">Lambda</button>
+</div>
+<!-- Simple Bar Chart Visualization (HTML/CSS) -->
+<div class="flex items-end justify-between h-64 gap-8 px-4 mt-8">
+<!-- Jan -->
+<div class="flex-1 flex flex-col items-center gap-2 h-full justify-end">
+<div class="flex gap-1 items-end w-full h-full">
+<div class="w-1/2 bg-secondary-container rounded-t-sm" style="height: 60%;"></div>
+<div class="w-1/2 bg-primary rounded-t-sm" style="height: 65%;"></div>
+</div>
+<span class="text-label-sm text-outline">Jan</span>
+</div>
+<!-- Feb -->
+<div class="flex-1 flex flex-col items-center gap-2 h-full justify-end">
+<div class="flex gap-1 items-end w-full h-full">
+<div class="w-1/2 bg-secondary-container rounded-t-sm" style="height: 65%;"></div>
+<div class="w-1/2 bg-primary rounded-t-sm" style="height: 72%;"></div>
+</div>
+<span class="text-label-sm text-outline">Feb</span>
+</div>
+<!-- Mar -->
+<div class="flex-1 flex flex-col items-center gap-2 h-full justify-end">
+<div class="flex gap-1 items-end w-full h-full">
+<div class="w-1/2 bg-secondary-container rounded-t-sm" style="height: 75%;"></div>
+<div class="w-1/2 bg-primary rounded-t-sm" style="height: 85%;"></div>
+</div>
+<span class="text-label-sm text-outline">Mar</span>
+</div>
+<!-- Apr -->
+<div class="flex-1 flex flex-col items-center gap-2 h-full justify-end">
+<div class="flex gap-1 items-end w-full h-full">
+<div class="w-1/2 bg-secondary-container rounded-t-sm" style="height: 80%;"></div>
+<div class="w-1/2 bg-primary rounded-t-sm" style="height: 92%;"></div>
+</div>
+<span class="text-label-sm text-outline">Apr</span>
+</div>
+<!-- May -->
+<div class="flex-1 flex flex-col items-center gap-2 h-full justify-end">
+<div class="flex gap-1 items-end w-full h-full">
+<div class="w-1/2 bg-secondary-container rounded-t-sm" style="height: 70%;"></div>
+<div class="w-1/2 bg-primary rounded-t-sm" style="height: 75%;"></div>
+</div>
+<span class="text-label-sm text-outline">May</span>
+</div>
+<!-- Jun -->
+<div class="flex-1 flex flex-col items-center gap-2 h-full justify-end">
+<div class="flex gap-1 items-end w-full h-full">
+<div class="w-1/2 bg-secondary-container rounded-t-sm" style="height: 85%;"></div>
+<div class="w-1/2 bg-primary rounded-t-sm" style="height: 95%;"></div>
+</div>
+<span class="text-label-sm text-outline">Jun</span>
+</div>
+</div>
+<div class="flex justify-center gap-8 mt-6">
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 bg-secondary-container rounded-full"></div>
+<span class="text-label-sm text-on-surface-variant">Target Budget</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-3 h-3 bg-primary rounded-full"></div>
+<span class="text-label-sm text-on-surface-variant">Actual Spend</span>
+</div>
+</div>
+</div>
+<!-- Live Findings Feed (span-4) -->
+<div class="col-span-12 md:col-span-4 bento-card p-container-padding flex flex-col">
+<div class="flex items-center justify-between mb-6">
+<div class="flex items-center gap-3">
+<div class="w-2.5 h-2.5 bg-green-500 rounded-full pulse-green"></div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Live Findings</h3>
+</div>
+<button class="text-primary font-bold text-label-sm hover:underline">View All</button>
+</div>
+<div class="flex flex-col gap-4 overflow-y-auto">
+<!-- Critical Finding -->
+<div class="p-3 bg-error-container/30 border border-error-container rounded-xl flex gap-4 transition-all hover:bg-error-container/50">
+<div class="w-10 h-10 rounded-lg bg-error text-white flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined">warning</span>
+</div>
+<div class="flex flex-col flex-grow">
+<div class="flex justify-between items-start">
+<p class="font-bold text-label-md text-on-surface">Idle EC2 Instance</p>
+<span class="text-[10px] text-outline">2 min ago</span>
+</div>
+<p class="text-label-sm text-on-surface-variant font-mono mt-1">ID: i-12345</p>
+<div class="mt-3 flex items-center gap-2">
+<span class="px-2 py-0.5 bg-error/10 text-error text-[10px] font-bold rounded uppercase">Critical</span>
+<span class="text-label-sm text-outline">Waste: $340/mo</span>
+</div>
+</div>
+</div>
+<!-- Warning Finding -->
+<div class="p-3 bg-orange-50 border border-orange-200 rounded-xl flex gap-4 transition-all hover:bg-orange-100/50">
+<div class="w-10 h-10 rounded-lg bg-orange-500 text-white flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined">database</span>
+</div>
+<div class="flex flex-col flex-grow">
+<div class="flex justify-between items-start">
+<p class="font-bold text-label-md text-on-surface">Underutilized RDS</p>
+<span class="text-[10px] text-outline">8 min ago</span>
+</div>
+<p class="text-label-sm text-on-surface-variant font-mono mt-1">ID: db-master</p>
+<div class="mt-3 flex items-center gap-2">
+<span class="px-2 py-0.5 bg-orange-500/10 text-orange-600 text-[10px] font-bold rounded uppercase">Warning</span>
+<span class="text-label-sm text-outline">Waste: $180/mo</span>
+</div>
+</div>
+</div>
+<!-- Info Finding -->
+<div class="p-3 bg-blue-50 border border-blue-200 rounded-xl flex gap-4 transition-all hover:bg-blue-100/50">
+<div class="w-10 h-10 rounded-lg bg-blue-500 text-white flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined">hard_drive</span>
+</div>
+<div class="flex flex-col flex-grow">
+<div class="flex justify-between items-start">
+<p class="font-bold text-label-md text-on-surface">Orphaned EBS Volume</p>
+<span class="text-[10px] text-outline">15 min ago</span>
+</div>
+<p class="text-label-sm text-on-surface-variant font-mono mt-1">ID: vol-990</p>
+<div class="mt-3 flex items-center gap-2">
+<span class="px-2 py-0.5 bg-blue-500/10 text-blue-600 text-[10px] font-bold rounded uppercase">Info</span>
+<span class="text-label-sm text-outline">Waste: $12/mo</span>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-auto pt-6">
+<div class="bg-surface-container rounded-xl p-4 relative overflow-hidden">
+<div class="z-10 relative">
+<p class="font-bold text-label-md mb-1">Weekly Insight</p>
+<p class="text-label-sm text-on-surface-variant leading-tight">Switching 4 instances to Graviton could save you $2,400 annually.</p>
+<button class="mt-3 text-primary font-bold text-label-sm flex items-center gap-1 group">
+                                Learn More <span class="material-symbols-outlined text-sm group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+</div>
+<div class="absolute -right-4 -bottom-4 w-16 h-16 bg-primary/10 rounded-full blur-xl"></div>
+</div>
+</div>
+</div>
+<!-- Optimization Summary (Bottom Row span-12) -->
+<div class="col-span-12 bento-card p-container-padding">
+<div class="flex items-center justify-between mb-6">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Cloud Fleet Optimization Status</h3>
+<div class="flex gap-4">
+<div class="flex items-center gap-2 px-3 py-1 bg-surface-container rounded-full text-label-sm font-bold">
+<span class="w-2 h-2 bg-green-500 rounded-full"></span> 82% Healthy
+                        </div>
+<div class="flex items-center gap-2 px-3 py-1 bg-surface-container rounded-full text-label-sm font-bold">
+<span class="w-2 h-2 bg-orange-500 rounded-full"></span> 14% Optimized
+                        </div>
+<div class="flex items-center gap-2 px-3 py-1 bg-surface-container rounded-full text-label-sm font-bold">
+<span class="w-2 h-2 bg-error rounded-full"></span> 4% Risk
+                        </div>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+<div class="flex flex-col items-center p-6 border border-outline-variant rounded-2xl bg-surface-container-lowest transition-all hover:border-primary">
+<div class="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-4">
+<span class="material-symbols-outlined text-3xl">memory</span>
+</div>
+<p class="font-bold text-on-surface">Compute Efficiency</p>
+<p class="text-[28px] font-extrabold text-on-surface mt-1">78%</p>
+<div class="w-full h-1.5 bg-outline-variant rounded-full mt-4 overflow-hidden">
+<div class="bg-primary h-full" style="width: 78%;"></div>
+</div>
+</div>
+<div class="flex flex-col items-center p-6 border border-outline-variant rounded-2xl bg-surface-container-lowest transition-all hover:border-primary">
+<div class="w-16 h-16 rounded-full bg-secondary-container/10 flex items-center justify-center text-secondary-container mb-4">
+<span class="material-symbols-outlined text-3xl">storage</span>
+</div>
+<p class="font-bold text-on-surface">Storage Density</p>
+<p class="text-[28px] font-extrabold text-on-surface mt-1">91%</p>
+<div class="w-full h-1.5 bg-outline-variant rounded-full mt-4 overflow-hidden">
+<div class="bg-secondary-container h-full" style="width: 91%;"></div>
+</div>
+</div>
+<div class="flex flex-col items-center p-6 border border-outline-variant rounded-2xl bg-surface-container-lowest transition-all hover:border-primary">
+<div class="w-16 h-16 rounded-full bg-tertiary-container/10 flex items-center justify-center text-tertiary-container mb-4">
+<span class="material-symbols-outlined text-3xl">account_balance_wallet</span>
+</div>
+<p class="font-bold text-on-surface">Budget Utilization</p>
+<p class="text-[28px] font-extrabold text-on-surface mt-1">62%</p>
+<div class="w-full h-1.5 bg-outline-variant rounded-full mt-4 overflow-hidden">
+<div class="bg-tertiary-container h-full" style="width: 62%;"></div>
+</div>
+</div>
+<div class="flex flex-col items-center p-6 border border-outline-variant rounded-2xl bg-surface-container-lowest transition-all hover:border-primary">
+<div class="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center text-green-600 mb-4">
+<span class="material-symbols-outlined text-3xl">auto_awesome</span>
+</div>
+<p class="font-bold text-on-surface">Auto-scaling Coverage</p>
+<p class="text-[28px] font-extrabold text-on-surface mt-1">44%</p>
+<div class="w-full h-1.5 bg-outline-variant rounded-full mt-4 overflow-hidden">
+<div class="bg-green-500 h-full" style="width: 44%;"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Micro-interaction for hover effects -->
+<script>
+        document.querySelectorAll('.bento-card').forEach(card => {
+            card.addEventListener('mouseenter', () => {
+                // Potential for adding dynamic shadows or subtle GSAP animations
+            });
+        });
+    </script>
+</body></html>

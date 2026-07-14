@@ -791,6 +791,255 @@ p {
   gap: 12px;
 }
 
+.recommendation-list,
+.budget-list {
+  display: grid;
+  gap: 14px;
+}
+
+.recommendation-card,
+.budget-card,
+.budget-panel,
+.budget-form {
+  padding: 18px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.recommendation-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.recommendation-header h3,
+.budget-panel h3 {
+  margin: 8px 0 4px;
+}
+
+.recommendation-side {
+  display: grid;
+  gap: 4px;
+  text-align: right;
+}
+
+.recommendation-actions,
+.reports-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.app-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(21, 23, 40, 0.48);
+  backdrop-filter: blur(8px);
+}
+
+.app-modal {
+  width: min(100%, 640px);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 244, 255, 0.98) 100%);
+  box-shadow: 0 30px 70px rgba(21, 23, 40, 0.24);
+  overflow: hidden;
+}
+
+.app-modal-header,
+.app-modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 22px 24px;
+}
+
+.app-modal-header {
+  border-bottom: 1px solid rgba(199, 196, 216, 0.6);
+}
+
+.app-modal-header h3 {
+  margin: 0;
+  font-size: 1.5rem;
+  letter-spacing: -0.03em;
+}
+
+.app-modal-close {
+  white-space: nowrap;
+}
+
+.app-modal-body {
+  display: grid;
+  gap: 16px;
+  padding: 24px;
+}
+
+.modal-field {
+  display: grid;
+  gap: 10px;
+}
+
+.modal-field span {
+  font-weight: 700;
+}
+
+.modal-field textarea {
+  width: 100%;
+  min-height: 132px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px 16px;
+  background: #fff;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.modal-field textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.12);
+}
+
+.modal-copy-block {
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(79, 70, 229, 0.06);
+  border: 1px solid rgba(79, 70, 229, 0.12);
+}
+
+.app-modal-actions {
+  border-top: 1px solid rgba(199, 196, 216, 0.6);
+}
+
+.budget-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.budget-form {
+  margin-top: 16px;
+  overflow: hidden;
+}
+
+.budget-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.budget-scope-switch {
+  display: inline-flex;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 16px;
+  background: var(--bg-muted);
+  border: 1px solid var(--border);
+}
+
+.budget-scope-pill {
+  border: 0;
+  background: transparent;
+  color: var(--text-soft);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.budget-scope-pill.active {
+  background: #fff;
+  color: var(--primary-strong);
+  box-shadow: 0 6px 18px rgba(79, 70, 229, 0.12);
+}
+
+.budget-field-card {
+  display: grid;
+  gap: 10px;
+  padding: 20px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #f8f5ff 0%, #f3efff 100%);
+  border: 1px solid rgba(79, 70, 229, 0.12);
+}
+
+.budget-field-card span {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.budget-field-card strong {
+  font-size: 1.2rem;
+  letter-spacing: -0.02em;
+}
+
+.budget-field-card p,
+.budget-field-card small {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.budget-input-shell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 0 16px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid rgba(79, 70, 229, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.budget-input-shell:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.12);
+}
+
+.budget-input-shell input,
+.budget-input-shell select {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  outline: none;
+  box-shadow: none;
+}
+
+.budget-prefix {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--primary-strong);
+}
+
+.budget-amount-card {
+  align-content: start;
+}
+
+.budget-wide {
+  grid-column: span 2;
+}
+
+.budget-form-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+
 .finding-row {
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -1133,6 +1382,11 @@ p {
   .finding-evidence {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .budget-layout,
+  .budget-form-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 920px) {
@@ -1227,9 +1481,21 @@ p {
     width: 100%;
   }
 
+  .recommendation-header {
+    flex-direction: column;
+  }
+
+  .recommendation-side {
+    text-align: left;
+  }
+
   .operations-actions .primary-button,
   .operations-actions .secondary-button,
-  .dashboard-topbar-tools .secondary-button {
+  .dashboard-topbar-tools .secondary-button,
+  .recommendation-actions .primary-button,
+  .recommendation-actions .secondary-button,
+  .reports-actions .primary-button,
+  .reports-actions .secondary-button {
     width: 100%;
   }
 }

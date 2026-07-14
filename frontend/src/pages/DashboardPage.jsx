@@ -31,6 +31,9 @@ const navigationSections = [
   { id: "connect-aws", label: "Connect AWS" },
   { id: "operations", label: "Sync Status" },
   { id: "findings", label: "Waste & Risks" },
+  { id: "recommendations", label: "Recommendations" },
+  { id: "budgets", label: "Budgets & Alerts" },
+  { id: "reports", label: "Reports" },
   { id: "forecast", label: "Cost Forecast" },
 ];
 const findingTypeOptions = [
@@ -121,6 +124,13 @@ function formatEvidenceValue(value) {
     return "-";
   }
   return String(value);
+}
+
+function formatBudgetScope(scope, scopeValue) {
+  if (scope === "total") {
+    return "Total spend";
+  }
+  return `${scope}: ${scopeValue}`;
 }
 
 function buildDefaultDateRange() {
@@ -561,6 +571,417 @@ function FindingsWorkbench({ findings, loading, error }) {
   );
 }
 
+function RecommendationsSection({ recommendations, loading, error, canManage, actionState, onApprove, onReject }) {
+  const [statusFilter, setStatusFilter] = useState("pending");
+  const filteredRecommendations = useMemo(() => {
+    if (statusFilter === "all") {
+      return recommendations;
+    }
+    return recommendations.filter((recommendation) => recommendation.status === statusFilter);
+  }, [recommendations, statusFilter]);
+
+  const pendingCount = recommendations.filter((recommendation) => recommendation.status === "pending").length;
+  const approvedCount = recommendations.filter((recommendation) => recommendation.status === "approved").length;
+  const potentialSavings = recommendations
+    .filter((recommendation) => recommendation.status === "pending")
+    .reduce((total, recommendation) => total + (recommendation.estimated_monthly_savings ?? 0), 0);
+
+  return (
+    <article className="info-card full-span-card" id="recommendations">
+      <div className="chart-header">
+        <div className="chart-title">
+          <h2>Recommendations</h2>
+          <p>Human-reviewed action drafts linked to findings. Approving only records intent; nothing is executed in AWS by this app.</p>
+        </div>
+        <div className="chip-row">
+          <span className="chip info">{pendingCount} pending</span>
+          <span className="chip good">{approvedCount} approved</span>
+          <span className="chip warning">{formatCurrency(potentialSavings)} potential monthly savings</span>
+        </div>
+      </div>
+      <div className="findings-toolbar">
+        <div className="segmented-control">
+          {["pending", "approved", "rejected", "all"].map((status) => (
+            <button
+              key={status}
+              className={`segmented-pill ${statusFilter === status ? "active" : ""}`}
+              type="button"
+              onClick={() => setStatusFilter(status)}
+            >
+              {status[0].toUpperCase() + status.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+      {loading ? <p>Loading recommendations...</p> : null}
+      {error ? <p className="form-error">{error}</p> : null}
+      {actionState.message ? <p className="form-success">{actionState.message}</p> : null}
+      {actionState.error ? <p className="form-error">{actionState.error}</p> : null}
+      {!loading && !error && filteredRecommendations.length === 0 ? (
+        <EmptyState
+          title="No recommendations yet"
+          description="Run a sync after findings exist, or wait for current findings to hydrate into recommendation drafts."
+        />
+      ) : null}
+      {!loading && !error && filteredRecommendations.length > 0 ? (
+        <div className="recommendation-list">
+          {filteredRecommendations.map((recommendation) => (
+            <div className="recommendation-card" key={recommendation.id}>
+              <div className="recommendation-header">
+                <div>
+                  <div className="finding-row-main">
+                    <span className={`chip ${recommendation.severity}`}>{recommendation.severity.toUpperCase()}</span>
+                    <span className={`chip ${recommendation.status === "approved" ? "good" : recommendation.status === "rejected" ? "warning" : "info"}`}>
+                      {recommendation.status}
+                    </span>
+                    <span className={`chip ${recommendation.finding_status === "resolved" ? "good" : "info"}`}>
+                      finding {recommendation.finding_status}
+                    </span>
+                  </div>
+                  <h3>{recommendation.description}</h3>
+                  <p className="finding-resource">{recommendation.resource_type} / {recommendation.resource_id}</p>
+                </div>
+                <div className="recommendation-side">
+                  <strong>{recommendation.estimated_monthly_savings !== null ? `${formatCurrency(recommendation.estimated_monthly_savings)}/mo` : "Review only"}</strong>
+                  <span className="finding-meta">{formatFindingTypeLabel(recommendation.finding_type)}</span>
+                </div>
+              </div>
+              <p className="data-note">{recommendation.explanation}</p>
+              {recommendation.decision_reason ? <p className="inline-note"><strong>Decision note:</strong> {recommendation.decision_reason}</p> : null}
+              {canManage && recommendation.status === "pending" ? (
+                <div className="recommendation-actions">
+                  <button
+                    className="primary-button"
+                    type="button"
+                    disabled={actionState.runningId === recommendation.id}
+                    onClick={() => onApprove(recommendation)}
+                  >
+                    {actionState.runningId === recommendation.id ? "Saving..." : "Approve"}
+                  </button>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    disabled={actionState.runningId === recommendation.id}
+                    onClick={() => onReject(recommendation)}
+                  >
+                    Reject
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+function RecommendationDecisionModal({ modalState, actionState, onClose, onReasonChange, onConfirm }) {
+  if (!modalState.open || !modalState.recommendation) {
+    return null;
+  }
+
+  const { mode, recommendation, reason } = modalState;
+  const isReject = mode === "reject";
+  const title = isReject ? "Reject recommendation" : "Approve recommendation";
+  const buttonLabel = actionState.runningId === recommendation.id ? "Saving..." : isReject ? "Reject recommendation" : "Approve recommendation";
+
+  return (
+    <div className="app-modal-backdrop" role="presentation" onClick={onClose}>
+      <div
+        className="app-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="recommendation-modal-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="app-modal-header">
+          <div>
+            <p className="eyebrow">{isReject ? "Review outcome" : "Approval check"}</p>
+            <h3 id="recommendation-modal-title">{title}</h3>
+            <p className="lede">
+              {recommendation.resource_type} / {recommendation.resource_id}
+            </p>
+          </div>
+          <button className="ghost-button app-modal-close" type="button" onClick={onClose}>
+            Close
+          </button>
+        </div>
+
+        <div className="app-modal-body">
+          <div className="guide-callout">
+            <strong>{recommendation.description}</strong>
+            <p>
+              {isReject
+                ? "Rejecting keeps the recommendation in history and records your reason for the team."
+                : "Approving only records review intent in the app. Nothing is executed in AWS automatically."}
+            </p>
+          </div>
+
+          {isReject ? (
+            <label className="modal-field">
+              <span>Why are you rejecting this?</span>
+              <textarea
+                rows={4}
+                value={reason}
+                onChange={(event) => onReasonChange(event.target.value)}
+                placeholder="Example: not a priority this month, already planned elsewhere, or required for production."
+              />
+            </label>
+          ) : (
+            <div className="modal-copy-block">
+              <p className="inline-note">
+                You can still act on this later in AWS manually. This workflow is only for internal review tracking and audit history.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="app-modal-actions">
+          <button className="secondary-button" type="button" onClick={onClose} disabled={actionState.runningId === recommendation.id}>
+            Cancel
+          </button>
+          <button
+            className="primary-button"
+            type="button"
+            disabled={actionState.runningId === recommendation.id || (isReject && !reason.trim())}
+            onClick={onConfirm}
+          >
+            {buttonLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BudgetsSection({
+  budgetsState,
+  budgetForm,
+  setBudgetForm,
+  budgetActionState,
+  editingBudgetId,
+  setEditingBudgetId,
+  onSubmitBudget,
+  canManage,
+}) {
+  const visibleAlerts = budgetsState.alerts.slice(0, 3);
+  const scopePlaceholder =
+    budgetForm.scope === "service"
+      ? "Amazon Elastic Compute Cloud - Compute"
+      : "us-east-1";
+
+  return (
+    <article className="info-card full-span-card" id="budgets">
+      <div className="chart-header">
+        <div className="chart-title">
+          <h2>Budgets & alerts</h2>
+          <p>Create monthly budget thresholds for total spend, a service, or a region. Alert generation is real; email delivery remains log-only for now.</p>
+        </div>
+        <div className="chip-row">
+          <span className="chip warning">{budgetsState.alerts.length} alerts</span>
+          <span className="chip info">{budgetsState.items.length} budgets</span>
+        </div>
+      </div>
+      {budgetsState.loading ? <p>Loading budgets and alerts...</p> : null}
+      {budgetsState.error ? <p className="form-error">{budgetsState.error}</p> : null}
+      {budgetActionState.message ? <p className="form-success">{budgetActionState.message}</p> : null}
+      {budgetActionState.error ? <p className="form-error">{budgetActionState.error}</p> : null}
+      <div className="budget-layout">
+        <section className="budget-panel">
+          <h3>Active alerts</h3>
+          {budgetsState.alerts.length === 0 ? (
+            <EmptyState title="No alerts yet" description="Create a low threshold or wait for synced spend to cross an active budget." />
+          ) : (
+            <div className="budget-list">
+              {visibleAlerts.map((alert) => (
+                <div className="budget-card" key={alert.id}>
+                  <div className="recommendation-header">
+                    <div>
+                      <strong>{formatBudgetScope(alert.budget_scope, alert.budget_scope_value)}</strong>
+                      <p className="finding-resource">Triggered for {alert.period_start}</p>
+                    </div>
+                    <div className="recommendation-side">
+                      <strong>{formatCurrency(alert.spend_at_trigger)}</strong>
+                      <span className="finding-meta">threshold {formatCurrency(alert.budget_threshold_amount)}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+        <section className="budget-panel">
+          <h3>Budgets</h3>
+          {budgetsState.items.length === 0 ? (
+            <EmptyState title="No budgets yet" description="Admins can create a monthly total, service, or region budget here." />
+          ) : (
+            <div className="budget-list">
+              {budgetsState.items.map((budget) => (
+                <div className="budget-card" key={budget.id}>
+                  <div className="recommendation-header">
+                    <div>
+                      <strong>{formatBudgetScope(budget.scope, budget.scope_value)}</strong>
+                      <p className="finding-resource">{budget.period} budget created {formatTimeAgo(budget.created_at)}</p>
+                    </div>
+                    <div className="recommendation-side">
+                      <strong>{formatCurrency(budget.threshold_amount)}</strong>
+                      <span className={`chip ${budget.is_active ? "good" : "warning"}`}>{budget.is_active ? "active" : "inactive"}</span>
+                    </div>
+                  </div>
+                  {canManage ? (
+                    <div className="recommendation-actions">
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        onClick={() => {
+                          setEditingBudgetId(budget.id);
+                          setBudgetForm({
+                            scope: budget.scope,
+                            scope_value: budget.scope_value,
+                            threshold_amount: String(budget.threshold_amount),
+                            period: budget.period,
+                          });
+                        }}
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+      {canManage ? (
+        <form className="budget-form" onSubmit={onSubmitBudget}>
+          <div className="chart-header">
+            <div className="chart-title">
+              <h3>{editingBudgetId ? "Edit budget" : "Create budget"}</h3>
+              <p>Budget checks are evaluated against the latest synced PostgreSQL cost data, not directly against AWS in the browser.</p>
+            </div>
+          </div>
+          <div className="budget-scope-switch" role="tablist" aria-label="Budget scope">
+            {[
+              { value: "total", label: "Total spend" },
+              { value: "service", label: "Service budget" },
+              { value: "region", label: "Region budget" },
+            ].map((option) => (
+              <button
+                key={option.value}
+                className={`budget-scope-pill ${budgetForm.scope === option.value ? "active" : ""}`}
+                type="button"
+                onClick={() =>
+                  setBudgetForm((current) => ({
+                    ...current,
+                    scope: option.value,
+                    scope_value: option.value === "total" ? "" : current.scope_value,
+                  }))
+                }
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <div className="budget-form-grid">
+            <label className="budget-field-card budget-amount-card">
+              <span>Threshold amount</span>
+              <div className="budget-input-shell">
+                <span className="budget-prefix">$</span>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  placeholder="5.00"
+                  value={budgetForm.threshold_amount}
+                  onChange={(event) => setBudgetForm((current) => ({ ...current, threshold_amount: event.target.value }))}
+                />
+              </div>
+              <small>Monthly alert threshold for this workspace slice.</small>
+            </label>
+
+            {budgetForm.scope === "total" ? (
+              <div className="budget-field-card budget-helper-card">
+                <span>Scope coverage</span>
+                <strong>Entire organization workspace</strong>
+                <p>This budget watches total synced spend across all services and regions in the current organization.</p>
+                <div className="chip-row">
+                  <span className="chip info">Monthly</span>
+                  <span className="chip good">No extra filter needed</span>
+                </div>
+              </div>
+            ) : (
+              <label className="budget-field-card budget-helper-card">
+                <span>{budgetForm.scope === "service" ? "Service name" : "AWS region"}</span>
+                <div className="budget-input-shell">
+                  <input
+                    placeholder={scopePlaceholder}
+                    value={budgetForm.scope_value}
+                    onChange={(event) => setBudgetForm((current) => ({ ...current, scope_value: event.target.value }))}
+                  />
+                </div>
+                <small>
+                  {budgetForm.scope === "service"
+                    ? "Match the AWS Cost Explorer service label exactly."
+                    : "Use the AWS region code you sync against, like us-east-1."}
+                </small>
+              </label>
+            )}
+          </div>
+          <div className="budget-form-actions">
+            <button className="primary-button" type="submit" disabled={budgetActionState.saving}>
+              {budgetActionState.saving ? "Saving..." : editingBudgetId ? "Update budget" : "Create budget"}
+            </button>
+            {editingBudgetId ? (
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => {
+                  setEditingBudgetId(null);
+                  setBudgetForm({
+                    scope: "total",
+                    scope_value: "",
+                    threshold_amount: "",
+                    period: "monthly",
+                  });
+                }}
+              >
+                Cancel
+              </button>
+            ) : null}
+          </div>
+        </form>
+      ) : null}
+    </article>
+  );
+}
+
+function ReportsSection({ reportState, onDownload }) {
+  return (
+    <article className="info-card full-span-card" id="reports">
+      <div className="chart-header">
+        <div className="chart-title">
+          <h2>Reports</h2>
+          <p>Export a point-in-time report covering spend summary, findings, and recommendation history for the current organization.</p>
+        </div>
+      </div>
+      {reportState.error ? <p className="form-error">{reportState.error}</p> : null}
+      <div className="reports-actions">
+        <button className="primary-button" type="button" disabled={reportState.downloading === "csv"} onClick={() => onDownload("csv")}>
+          {reportState.downloading === "csv" ? "Preparing CSV..." : "Download CSV"}
+        </button>
+        <button className="secondary-button" type="button" disabled={reportState.downloading === "pdf"} onClick={() => onDownload("pdf")}>
+          {reportState.downloading === "pdf" ? "Preparing PDF..." : "Download PDF"}
+        </button>
+      </div>
+      <p className="inline-note">
+        PDF export uses ReportLab in the backend. This was chosen over WeasyPrint here because it keeps the Docker image lighter and avoids extra system dependencies such as Pango.
+      </p>
+    </article>
+  );
+}
+
 function AwsSetupGuide() {
   const policyJson = `{
   "Version": "2012-10-17",
@@ -751,6 +1172,14 @@ function OperationsPanel({
                 <dd>{syncState.summary.findings_detected}</dd>
               </div>
               <div>
+                <dt>Recommendations</dt>
+                <dd>{syncState.summary.recommendations_synced ?? 0}</dd>
+              </div>
+              <div>
+                <dt>Alerts</dt>
+                <dd>{syncState.summary.alerts_triggered ?? 0}</dd>
+              </div>
+              <div>
                 <dt>Warnings</dt>
                 <dd>
                   {Array.isArray(syncState.summary.warnings) && syncState.summary.warnings.length > 0
@@ -863,6 +1292,17 @@ export default function DashboardPage() {
     error: "",
     items: [],
   });
+  const [recommendationsState, setRecommendationsState] = useState({
+    loading: true,
+    error: "",
+    items: [],
+  });
+  const [budgetsState, setBudgetsState] = useState({
+    loading: true,
+    error: "",
+    items: [],
+    alerts: [],
+  });
   const [organizationContext, setOrganizationContext] = useState({
     loading: true,
     data: null,
@@ -900,6 +1340,33 @@ export default function DashboardPage() {
     error: "",
     summary: null,
   });
+  const [recommendationActionState, setRecommendationActionState] = useState({
+    runningId: null,
+    message: "",
+    error: "",
+  });
+  const [budgetForm, setBudgetForm] = useState({
+    scope: "total",
+    scope_value: "",
+    threshold_amount: "",
+    period: "monthly",
+  });
+  const [editingBudgetId, setEditingBudgetId] = useState(null);
+  const [budgetActionState, setBudgetActionState] = useState({
+    saving: false,
+    message: "",
+    error: "",
+  });
+  const [reportState, setReportState] = useState({
+    downloading: "",
+    error: "",
+  });
+  const [recommendationModal, setRecommendationModal] = useState({
+    open: false,
+    mode: "approve",
+    recommendation: null,
+    reason: "",
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -907,6 +1374,8 @@ export default function DashboardPage() {
     async function loadDashboard() {
       setDashboard((current) => ({ ...current, loading: true, error: "" }));
       setFindingsState((current) => ({ ...current, loading: true, error: "" }));
+      setRecommendationsState((current) => ({ ...current, loading: true, error: "" }));
+      setBudgetsState((current) => ({ ...current, loading: true, error: "" }));
 
       const params = new URLSearchParams({
         start: dateRange.start,
@@ -928,6 +1397,9 @@ export default function DashboardPage() {
           trendResponse,
           resourceResponse,
           findingsResponse,
+          recommendationsResponse,
+          budgetsResponse,
+          alertsResponse,
         ] = await Promise.all([
           apiFetch("/auth/me"),
           apiFetch("/organization/me"),
@@ -937,6 +1409,9 @@ export default function DashboardPage() {
           apiFetch(`/dashboard/trend?${trendParams.toString()}`),
           apiFetch("/dashboard/resources"),
           apiFetch("/findings?status=all"),
+          apiFetch("/recommendations?status=all"),
+          apiFetch("/budgets"),
+          apiFetch("/budgets/alerts"),
         ]);
 
         const [
@@ -948,6 +1423,9 @@ export default function DashboardPage() {
           trendData,
           resourceData,
           findingsData,
+          recommendationsData,
+          budgetsData,
+          alertsData,
         ] = await Promise.all([
           meResponse.json(),
           organizationResponse.json(),
@@ -957,6 +1435,9 @@ export default function DashboardPage() {
           trendResponse.json(),
           resourceResponse.json(),
           findingsResponse.json(),
+          recommendationsResponse.json(),
+          budgetsResponse.json(),
+          alertsResponse.json(),
         ]);
 
         if (!cancelled) {
@@ -986,6 +1467,22 @@ export default function DashboardPage() {
             error: findingsResponse.ok ? "" : extractApiError(findingsData, "Failed to load findings"),
             items: findingsResponse.ok ? findingsData : [],
           });
+          setRecommendationsState({
+            loading: false,
+            error: recommendationsResponse.ok ? "" : extractApiError(recommendationsData, "Failed to load recommendations"),
+            items: recommendationsResponse.ok ? recommendationsData : [],
+          });
+          setBudgetsState({
+            loading: false,
+            error: budgetsResponse.ok && alertsResponse.ok
+              ? ""
+              : [
+                  !budgetsResponse.ok ? extractApiError(budgetsData, "Failed to load budgets") : "",
+                  !alertsResponse.ok ? extractApiError(alertsData, "Failed to load alerts") : "",
+                ].filter(Boolean).join(" | "),
+            items: budgetsResponse.ok ? budgetsData : [],
+            alerts: alertsResponse.ok ? alertsData : [],
+          });
         }
       } catch (error) {
         if (!cancelled) {
@@ -999,6 +1496,17 @@ export default function DashboardPage() {
             loading: false,
             error: message,
             items: [],
+          });
+          setRecommendationsState({
+            loading: false,
+            error: message,
+            items: [],
+          });
+          setBudgetsState({
+            loading: false,
+            error: message,
+            items: [],
+            alerts: [],
           });
         }
       }
@@ -1193,6 +1701,138 @@ export default function DashboardPage() {
     }
   }
 
+  function openRecommendationModal(mode, recommendation) {
+    setRecommendationModal({
+      open: true,
+      mode,
+      recommendation,
+      reason: mode === "reject" ? "Not a priority right now" : "",
+    });
+  }
+
+  function closeRecommendationModal() {
+    if (recommendationActionState.runningId) {
+      return;
+    }
+    setRecommendationModal({
+      open: false,
+      mode: "approve",
+      recommendation: null,
+      reason: "",
+    });
+  }
+
+  async function submitRecommendationDecision() {
+    const recommendation = recommendationModal.recommendation;
+    if (!recommendation) {
+      return;
+    }
+
+    const isReject = recommendationModal.mode === "reject";
+    const reason = recommendationModal.reason.trim();
+    setRecommendationActionState({ runningId: recommendation.id, message: "", error: "" });
+    try {
+      const response = await apiFetch(`/recommendations/${recommendation.id}/${isReject ? "reject" : "approve"}`, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(extractApiError(data, `Failed to ${isReject ? "reject" : "approve"} recommendation`));
+      }
+      setRecommendationActionState({
+        runningId: null,
+        message: `${isReject ? "Rejected" : "Approved"} recommendation for ${recommendation.resource_id}.`,
+        error: "",
+      });
+      closeRecommendationModal();
+      setRefreshKey((current) => current + 1);
+    } catch (error) {
+      setRecommendationActionState({
+        runningId: null,
+        message: "",
+        error: error instanceof Error ? error.message : `Failed to ${isReject ? "reject" : "approve"} recommendation`,
+      });
+    }
+  }
+
+  function handleRecommendationApprove(recommendation) {
+    openRecommendationModal("approve", recommendation);
+  }
+
+  function handleRecommendationReject(recommendation) {
+    openRecommendationModal("reject", recommendation);
+  }
+
+  async function handleBudgetSubmit(event) {
+    event.preventDefault();
+    setBudgetActionState({ saving: true, message: "", error: "" });
+
+    try {
+      const path = editingBudgetId ? `/budgets/${editingBudgetId}` : "/budgets";
+      const method = editingBudgetId ? "PUT" : "POST";
+      const response = await apiFetch(path, {
+        method,
+        body: JSON.stringify({
+          scope: budgetForm.scope,
+          scope_value: budgetForm.scope_value,
+          threshold_amount: Number(budgetForm.threshold_amount),
+          period: budgetForm.period,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(extractApiError(data, "Failed to save budget"));
+      }
+      setBudgetActionState({
+        saving: false,
+        message: editingBudgetId ? "Budget updated." : "Budget created.",
+        error: "",
+      });
+      setEditingBudgetId(null);
+      setBudgetForm({
+        scope: "total",
+        scope_value: "",
+        threshold_amount: "",
+        period: "monthly",
+      });
+      setRefreshKey((current) => current + 1);
+    } catch (error) {
+      setBudgetActionState({
+        saving: false,
+        message: "",
+        error: error instanceof Error ? error.message : "Failed to save budget",
+      });
+    }
+  }
+
+  async function handleReportDownload(format) {
+    setReportState({ downloading: format, error: "" });
+    try {
+      const response = await apiFetch(`/reports/export?format=${format}`);
+      if (!response.ok) {
+        const payload = await response.json();
+        throw new Error(extractApiError(payload, `Failed to export ${format.toUpperCase()} report`));
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `cloudcost-report.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      setReportState({ downloading: "", error: "" });
+    } catch (error) {
+      setReportState({
+        downloading: "",
+        error: error instanceof Error ? error.message : `Failed to export ${format.toUpperCase()} report`,
+      });
+    }
+  }
+
   const isSimulatedWorkspace =
     !organizationContext.data?.aws_connection.has_connection &&
     ((dashboard.summary?.current_month_spend ?? 0) > 0 ||
@@ -1242,6 +1882,7 @@ export default function DashboardPage() {
     () => findings.filter((finding) => finding.status === "open"),
     [findings]
   );
+  const recommendations = recommendationsState.items;
 
   const systemStats = useMemo(() => {
     const utilization = derivedStats.avgCpu ?? 0;
@@ -1294,6 +1935,18 @@ export default function DashboardPage() {
             <span className="sidebar-icon">!</span>
             <span>Waste & Risks</span>
           </a>
+          <a className={`sidebar-link ${activeSection === "recommendations" ? "active" : ""}`} href="#recommendations">
+            <span className="sidebar-icon">=</span>
+            <span>Recommendations</span>
+          </a>
+          <a className={`sidebar-link ${activeSection === "budgets" ? "active" : ""}`} href="#budgets">
+            <span className="sidebar-icon">$</span>
+            <span>Budgets & Alerts</span>
+          </a>
+          <a className={`sidebar-link ${activeSection === "reports" ? "active" : ""}`} href="#reports">
+            <span className="sidebar-icon">%</span>
+            <span>Reports</span>
+          </a>
           <a className={`sidebar-link ${activeSection === "forecast" ? "active" : ""}`} href="#forecast">
             <span className="sidebar-icon">+</span>
             <span>Cost Forecast</span>
@@ -1336,6 +1989,14 @@ export default function DashboardPage() {
               </div>
             </div>
           </section>
+
+          <RecommendationDecisionModal
+            modalState={recommendationModal}
+            actionState={recommendationActionState}
+            onClose={closeRecommendationModal}
+            onReasonChange={(reason) => setRecommendationModal((current) => ({ ...current, reason }))}
+            onConfirm={submitRecommendationDecision}
+          />
 
           {dashboard.error ? <p className="form-error" style={{ marginTop: "16px" }}>{dashboard.error}</p> : null}
 
@@ -1411,6 +2072,29 @@ export default function DashboardPage() {
             ) : null}
 
             <FindingsWorkbench findings={findingsState.items} loading={findingsState.loading} error={findingsState.error} />
+
+            <RecommendationsSection
+              recommendations={recommendations}
+              loading={recommendationsState.loading}
+              error={recommendationsState.error}
+              canManage={auth.user?.role === "admin"}
+              actionState={recommendationActionState}
+              onApprove={handleRecommendationApprove}
+              onReject={handleRecommendationReject}
+            />
+
+            <BudgetsSection
+              budgetsState={budgetsState}
+              budgetForm={budgetForm}
+              setBudgetForm={setBudgetForm}
+              budgetActionState={budgetActionState}
+              editingBudgetId={editingBudgetId}
+              setEditingBudgetId={setEditingBudgetId}
+              onSubmitBudget={handleBudgetSubmit}
+              canManage={auth.user?.role === "admin"}
+            />
+
+            <ReportsSection reportState={reportState} onDownload={handleReportDownload} />
 
             <article className="info-card full-span-card" id="forecast">
               <div className="chart-header">

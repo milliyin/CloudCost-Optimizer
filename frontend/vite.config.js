@@ -27,6 +27,18 @@ export default defineConfig({
         target: "http://backend:8000",
         changeOrigin: true,
       },
+      "/recommendations": {
+        target: "http://backend:8000",
+        changeOrigin: true,
+      },
+      "/budgets": {
+        target: "http://backend:8000",
+        changeOrigin: true,
+      },
+      "/reports": {
+        target: "http://backend:8000",
+        changeOrigin: true,
+      },
       "/sync": {
         target: "http://backend:8000",
         changeOrigin: true,

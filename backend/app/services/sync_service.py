@@ -16,8 +16,10 @@ from app.services.aws.credentials import get_organization_aws_credentials
 from app.services.aws.cost_explorer import get_cost_forecast, get_cost_grouped_by_region, get_cost_grouped_by_service
 from app.services.aws.errors import AWSServiceError
 from app.services.aws.resource_inventory import get_resource_inventory
+from app.services.budget_service import evaluate_budgets
 from app.services.demo_seed import clear_demo_seed_workspace
 from app.services.findings_service import run_findings_detection
+from app.services.recommendation_service import sync_recommendations_from_findings
 
 _COST_AMOUNT_SCALE = Decimal("0.0001")
 
@@ -135,6 +137,8 @@ async def run_sync(db: AsyncSession, organization: Organization) -> dict:
         "metric_samples_synced": 0,
         "forecast_points": 0,
         "findings_detected": 0,
+        "recommendations_synced": 0,
+        "alerts_triggered": 0,
         "warnings": [],
     }
 
@@ -182,6 +186,8 @@ async def run_sync(db: AsyncSession, organization: Organization) -> dict:
     summary["metric_samples_synced"] = await _upsert_metric_samples(db, metric_samples, organization.id)
     summary["forecast_points"] = len(forecast.get("ForecastResultsByTime", []))
     summary["findings_detected"] = await run_findings_detection(db, organization.id)
+    summary["recommendations_synced"] = await sync_recommendations_from_findings(db, organization.id)
+    summary["alerts_triggered"] = await evaluate_budgets(db, organization.id)
 
     await db.commit()
     return summary

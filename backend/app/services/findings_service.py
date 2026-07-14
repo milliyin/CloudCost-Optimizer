@@ -100,6 +100,7 @@ def _detect_idle_instance(resource: CloudResource, metric_groups: dict[str, list
             "sample_count": len(cpu_values),
             "cpu_threshold_percent": settings.finding_idle_cpu_threshold_percent,
             "network_threshold_average_bytes": settings.finding_idle_network_average_bytes,
+            "instance_type": resource.instance_type,
             "recent_window_hours": settings.finding_recent_window_hours,
             "recent_avg_cpu_percent": round(recent_cpu, 2) if recent_cpu is not None else None,
             "recent_sample_count": recent_sample_count,

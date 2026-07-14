@@ -10,8 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.aws_connection import AWSConnection
 from app.models.cloud_resource import CloudResource
 from app.models.cost_record import CostRecord
+from app.models.finding import Finding
 from app.models.metric_sample import MetricSample
+from app.models.recommendation import Recommendation
 from app.models.user import User
+from app.services.findings_service import run_findings_detection
+from app.services.recommendation_service import sync_recommendations_from_findings
 
 
 @dataclass
@@ -54,6 +58,14 @@ async def clear_demo_seed_workspace(db: AsyncSession, organization_id: int) -> N
             CostRecord.account_id == _demo_account_id(organization_id),
         )
     )
+
+
+async def clear_workspace_for_demo_seed(db: AsyncSession, organization_id: int) -> None:
+    await db.execute(delete(Recommendation).where(Recommendation.organization_id == organization_id))
+    await db.execute(delete(Finding).where(Finding.organization_id == organization_id))
+    await db.execute(delete(MetricSample).where(MetricSample.organization_id == organization_id))
+    await db.execute(delete(CloudResource).where(CloudResource.organization_id == organization_id))
+    await db.execute(delete(CostRecord).where(CostRecord.organization_id == organization_id))
 
 
 def _build_cost_records(organization_id: int, today: date) -> list[CostRecord]:
@@ -172,7 +184,7 @@ async def seed_demo_workspace(db: AsyncSession, current_user: User) -> DemoSeedS
         select(AWSConnection).where(AWSConnection.organization_id == organization_id)
     )
 
-    await clear_demo_seed_workspace(db, organization_id)
+    await clear_workspace_for_demo_seed(db, organization_id)
 
     aws_connection_removed = False
     if existing_connection is not None:
@@ -187,6 +199,9 @@ async def seed_demo_workspace(db: AsyncSession, current_user: User) -> DemoSeedS
     db.add_all(cost_records)
     db.add_all(resource_records)
     db.add_all(metric_samples)
+    await db.flush()
+    await run_findings_detection(db, organization_id)
+    await sync_recommendations_from_findings(db, organization_id)
     await db.commit()
 
     return DemoSeedSummary(

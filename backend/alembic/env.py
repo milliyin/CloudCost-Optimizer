@@ -7,7 +7,19 @@ from sqlalchemy import engine_from_config, pool
 
 from app.core.config import settings
 from app.db.base import Base
-from app.models import aws_connection, cloud_resource, cost_record, metric_sample, organization, user  # noqa: F401
+from app.models import (  # noqa: F401
+    alert,
+    audit_log,
+    aws_connection,
+    budget,
+    cloud_resource,
+    cost_record,
+    finding,
+    metric_sample,
+    organization,
+    recommendation,
+    user,
+)
 
 config = context.config
 

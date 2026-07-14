@@ -19,20 +19,23 @@ resources.
 
 ## 2. Current Status
 
-- Current stage: Stage 4 - Waste detection and live billing dashboard pass completed
-- Last completed milestone: 2026-06-29 - Stage 1 auth, RBAC, and manual verification completed
+- Current stage: Stage 5 - Recommendations, budget alerts, and reports (initial pass complete; manual test gate pending)
+- Last completed milestone: 2026-07-14 - Stage 5 backend and dashboard foundation with budget UI polish and stale-recommendation reconciliation
 - Known broken / in-progress things right now:
-  - Stage 3 dashboard queries and UI are working with org-scoped data, including opt-in demo seeding, real-sync cleanup behavior, and role-aware admin controls.
-  - Stage 4 live billing sync is now writing real Cost Explorer rows for the tested AWS account, and the spend cards plus service/region/trend charts are rendering from PostgreSQL.
-  - Resource inventory intentionally mixes inventory-only rows with EC2 metric-backed rows, so the table now labels telemetry availability instead of showing repeated `n/a` values for non-EC2 resources.
-  - Stage 4 now includes stored findings, evidence panels, filters, resolved-history support, a standalone in-app AWS connection guide with embedded policy JSON, scroll-aware sidebar navigation, and verified current-month spend ingestion; the next major milestone is Stage 5 recommendations and approval workflows.
+  - Stage 5 adds org-scoped recommendations with admin approve/reject workflow, audit logging, monthly budgets with DB-backed alerts, and PDF/CSV report export via `reportlab`.
+  - Budget alerts are persisted and surfaced in the dashboard only; SES email delivery is intentionally not wired up yet and should be treated as log/DB-only behavior.
+  - The budget creator UI now uses product-style controls: scope pills, a `$` amount input shell, a helper card for total budgets, and conditional service/region fields.
+  - Stale pending recommendations auto-close when their underlying finding resolves, and recommendation data reconciles on list load so resolved findings stop showing as active warnings without waiting for another sync.
+  - PDF export works but a follow-up typography/spacing polish pass is still desirable; logic is in place, presentation can improve.
+  - Stage 5 manual test gate from `prompt.md` has not been formally signed off in this session yet.
 
 ## 3. Architecture Summary
 
 The repository now contains a FastAPI backend, a Vite + React frontend, and a
 PostgreSQL service defined in Docker Compose. The backend exposes `/health`,
-auth endpoints, organization endpoints, dashboard endpoints, admin-only test
-endpoints, and a manual `POST /sync/run` endpoint. The data model includes
+auth endpoints, organization endpoints, dashboard endpoints, findings,
+recommendations, budgets, reports export, admin-only test endpoints, and a
+manual `POST /sync/run` endpoint. The data model includes
 organizations and organization-specific AWS connections so synced AWS data is
 scoped to a client workspace instead of one shared global dataset. The frontend
 now includes an actual dashboard layer with summary cards, cost charts, trend
@@ -254,6 +257,36 @@ credits excluded. To reduce demo confusion, the backend now applies the same
 refund-and-credit exclusion filter during Cost Explorer sync so the dashboard
 more closely matches the totals visible in the AWS console.
 
+### 2026-07-14 - Recommendations are generated from findings but never execute AWS actions
+
+Stage 5 maps each open finding to a recommendation template with heuristic
+savings estimates and explicit copy that approval only records a human decision.
+Approve/reject endpoints update status and write `AuditLog` rows, but the
+codebase contains no mutating boto3 calls. A self-audit grep for
+`stop_instances`, `terminate_instances`, `delete_volume`, and `modify_instance`
+returned zero matches outside comments/docs.
+
+### 2026-07-14 - Reconcile recommendations on list load and after sync
+
+Recommendation rows can drift from finding status if a finding resolves between
+syncs. `sync_recommendations_from_findings()` now runs after each sync and again
+when `/recommendations` is listed so stale `pending` rows auto-close when their
+finding is already `resolved`, without requiring another manual sync.
+
+### 2026-07-14 - reportlab chosen for PDF export
+
+Stage 5 report export uses `reportlab==5.0.0` for PDF generation because it has
+straightforward Docker compatibility and enough layout control for a portfolio
+report without adding a headless-browser dependency. CSV export uses the Python
+stdlib `csv` module.
+
+### 2026-07-14 - Budget alerts are DB-only for now
+
+Budget evaluation compares current-month synced spend against active budgets and
+persists `Alert` rows when thresholds are breached. SES email delivery is
+intentionally stubbed/not implemented; alerts appear in the dashboard and
+database only, and this should be documented honestly in demos.
+
 ## 5. Environment Variables / Secrets Reference
 
 - `DATABASE_URL`
@@ -310,6 +343,25 @@ more closely matches the totals visible in the AWS console.
   - Where to get it: set manually, usually `development` for local work
 
 ## 6. Known Issues & Fixes Log (bug journal)
+
+### 2026-07-14 - Pending recommendations stayed active after their finding resolved
+
+- Symptom:
+  - A recommendation such as the idle `i-demoapp01` item could remain `pending`
+    and show as an active warning even after the underlying finding was already
+    marked `resolved`.
+- Root cause:
+  - Recommendation status was created from findings at sync time but was not
+    reconciled when the finding later changed state, and list endpoints did not
+    refresh recommendation rows on load.
+- Fix:
+  - `sync_recommendations_from_findings()` now auto-closes `pending`
+    recommendations when the linked finding is `resolved`, and
+    `list_recommendations()` runs that reconciliation before returning results.
+- How to verify it's still fixed:
+  - Resolve a finding that still has a pending recommendation, refresh the
+    Recommendations section, and confirm the item is no longer shown as an active
+    pending warning.
 
 ### 2026-06-29 - Postgres 18 container failed to start after Stage 1 changes
 
@@ -677,6 +729,26 @@ more closely matches the totals visible in the AWS console.
   - Stage 4 is now manually verified end-to-end for `org1`.
   - The next major milestone is Stage 5 recommendations, savings estimates, and action workflow design.
 
+### 2026-07-14 - Add Stage 5 recommendations, budget alerts, and reports
+- What changed:
+  - Added Stage 5 models and Alembic migration for recommendations, budgets, alerts, and audit logs.
+  - Added `/recommendations`, `/budgets`, and `/reports/export` APIs with org-scoped services, sync-time recommendation generation, budget evaluation, and PDF/CSV report export via `reportlab`.
+  - Added dashboard sections for Recommendations, Budgets & alerts, and Reports with admin-only approve/reject confirmation modals and a product-style budget creator (scope pills, currency input shell, conditional scope fields).
+  - Fixed stale pending recommendations by reconciling recommendation status against finding status on sync and on recommendations list load.
+  - Updated demo seed to regenerate findings and recommendations after seeding.
+  - Added Vite proxy entries for the new API routes.
+- Why:
+  - Implement the Stage 5 safety-critical workflow: recommend actions, require explicit human approval, log decisions, raise budget alerts, and export reports without ever mutating AWS resources.
+- Files touched:
+  - Backend models, migration, APIs, services, sync/demo seed integration, requirements, frontend dashboard/styles/Vite proxy, design reference assets, and project memory.
+- Manual test performed:
+  - Docker Compose rebuild completed successfully for backend and frontend containers; browser verification of budgets, recommendations reconciliation, and report export is still pending formal Stage 5 sign-off.
+- Anything the next session needs to know:
+  - Run `docker compose up --build`, refresh the dashboard, and verify Budgets & alerts plus Recommendations, especially that resolved findings no longer leave stale pending recommendations visible.
+  - PDF export logic works; a typography/spacing polish pass is the next UX improvement, not more backend logic.
+  - Budget alerts are DB/dashboard-only until SES is intentionally added later.
+  - Stage 6 ML forecasting remains blocked until enough historical billing data accumulates.
+
 ## 8. Manual Test Checklist Status
 
 - Stage 0: base Docker/frontend flow confirmed during local setup; AWS setup still being completed separately for Stage 2 readiness
@@ -684,6 +756,7 @@ more closely matches the totals visible in the AWS console.
 - Stage 2: passed for resource inventory, CloudWatch metric sync, and live Cost Explorer billing persistence
 - Stage 3: passed for multitenant dashboard, real inventory sync, viewer/admin separation, demo seeding behavior, mixed-resource inventory handling, and AWS onboarding flow
 - Stage 4: passed with stored findings, evidence panels, filters, resolved-history support, and verified live billing dashboard data
+- Stage 5: initial implementation complete; formal manual test gate pending (recommendations approve/reject audit trail, viewer 403 on approve, budget alert generation, PDF/CSV export, mutating-AWS-API grep verification)
 - Multitenancy pivot: landed; org-scoped auth, AWS connections, sync data, teammate creation, and dashboard views are implemented
 
 ## 9. AWS Account / Sandbox Notes
