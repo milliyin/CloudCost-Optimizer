@@ -358,7 +358,88 @@ The models define the structure of the data stored in PostgreSQL.
 
 Alembic migrations in `backend/alembic/` keep the database schema in sync with the code.
 
-## 10. Data Model
+## 10. Backend APIs
+
+This project exposes a small set of backend APIs. They are grouped by feature so the frontend can call only the endpoints it needs.
+
+### Health
+
+- `GET /health`
+- Simple service check that returns whether the backend is running.
+
+### Authentication
+
+- `POST /auth/register`
+- Creates a new organization and the first user account.
+- `POST /auth/login`
+- Logs a user in and returns access and refresh tokens.
+- `POST /auth/refresh`
+- Creates a new token pair from a refresh token.
+- `GET /auth/me`
+- Returns the current logged-in user.
+- `GET /auth/admin-check`
+- Confirms that the current user has admin access.
+- `POST /auth/teammates`
+- Admin-only route that creates another user in the same organization.
+
+### Organization
+
+- `GET /organization/me`
+- Returns the current organization and whether AWS credentials are connected.
+- `PUT /organization/aws-connection`
+- Admin-only route that saves or updates encrypted AWS credentials for the organization.
+- `POST /organization/demo-seed`
+- Admin-only route that loads demo data for the organization and resets the workspace to simulated data.
+
+### Sync
+
+- `POST /sync/run`
+- Admin-only route that runs the AWS sync pipeline and stores cost, inventory, and telemetry data.
+
+### Dashboard
+
+- `GET /dashboard/summary`
+- Returns current spend summary cards.
+- `GET /dashboard/by-service`
+- Returns grouped cost totals by AWS service.
+- `GET /dashboard/by-region`
+- Returns grouped cost totals by AWS region.
+- `GET /dashboard/trend`
+- Returns spend trend data by day or month.
+- `GET /dashboard/resources`
+- Returns the synced resource inventory table.
+
+### Findings
+
+- `GET /findings`
+- Returns waste and risk findings with optional filters for type, severity, and status.
+
+### Recommendations
+
+- `GET /recommendations`
+- Lists recommendation drafts and their current decision state.
+- `POST /recommendations/{recommendation_id}/approve`
+- Admin-only route that marks a recommendation as approved.
+- `POST /recommendations/{recommendation_id}/reject`
+- Admin-only route that marks a recommendation as rejected.
+
+### Budgets
+
+- `GET /budgets`
+- Lists budgets for the current organization.
+- `POST /budgets`
+- Admin-only route that creates a new budget.
+- `PUT /budgets/{budget_id}`
+- Admin-only route that updates an existing budget.
+- `GET /budgets/alerts`
+- Returns triggered budget alerts.
+
+### Reports
+
+- `GET /reports/export`
+- Exports the organization report as CSV or PDF.
+
+## 11. Data Model
 
 The most important tables are:
 
@@ -388,7 +469,7 @@ The most important tables are:
 - `alerts`: triggered budget alerts
 - `audit_logs`: record of key actions
 
-## 11. Sync Pipeline
+## 12. Sync Pipeline
 
 The sync pipeline is one of the most important parts of the project.
 
@@ -419,7 +500,7 @@ The app uses upsert so repeated syncs do not duplicate data. If the same record 
 - the database stays clean and consistent
 - the dashboard always reads current stored state
 
-## 12. Findings Logic
+## 13. Findings Logic
 
 Stage 4 introduced the findings engine.
 
@@ -446,7 +527,7 @@ Each finding stores evidence such as:
 
 This is important because the dashboard can show not just the result, but also why the system reached that result.
 
-## 13. Recommendation Flow
+## 14. Recommendation Flow
 
 Recommendations are built from findings.
 
@@ -467,7 +548,7 @@ If a finding says an EC2 instance is idle, the recommendation might say:
 - nothing is changed in AWS automatically
 - the user still has to make the real AWS change manually
 
-## 14. Budget and Alert Flow
+## 15. Budget and Alert Flow
 
 Budgets compare the current synced spend to a threshold.
 
@@ -489,7 +570,7 @@ Budgets compare the current synced spend to a threshold.
 - the project now covers cost governance, not only detection
 - it gives the dashboard a more complete FinOps-style workflow
 
-## 15. Report Export
+## 16. Report Export
 
 The reporting feature exports dashboard data outside the app.
 
@@ -511,7 +592,7 @@ The reporting feature exports dashboard data outside the app.
 - findings
 - recommendations
 
-## 16. Demo Seed Mode
+## 17. Demo Seed Mode
 
 Demo seed mode is used when the user wants a working dashboard without connecting live AWS data.
 
@@ -528,7 +609,7 @@ Demo seed mode is used when the user wants a working dashboard without connectin
 - useful for testing the UI without AWS access
 - useful for showing the project during development
 
-## 17. Multitenancy
+## 18. Multitenancy
 
 This is one of the most important design decisions.
 
@@ -548,7 +629,7 @@ Each organization has isolated data.
 - it demonstrates real SaaS behavior
 - it shows isolation and security design
 
-## 18. Security Design
+## 19. Security Design
 
 The project includes several safety choices:
 
@@ -559,13 +640,13 @@ The project includes several safety choices:
 - the browser never talks to AWS directly
 - report actions do not change AWS automatically
 
-## 19. How To Explain It In Your Viva
+## 20. How To Explain It In Your Viva
 
 If you need a short presentation summary, you can say:
 
 > CloudCost Optimizer is a multi-tenant AWS cost analysis dashboard. The frontend shows data, but the backend owns all AWS communication, stores the results in PostgreSQL, and runs detection rules to generate findings and recommendations. Each organization has isolated credentials and isolated data, so the system behaves like a SaaS product.
 
-## 20. Stage 4 Summary
+## 21. Stage 4 Summary
 
 By Stage 4, the project has:
 
