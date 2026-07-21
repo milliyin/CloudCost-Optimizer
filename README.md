@@ -5,6 +5,9 @@ spend, surfacing waste, and presenting safe human-reviewed cost-saving
 recommendations. This repository is being built in stages, with a manual test
 gate at the end of each stage.
 
+If you want the detailed FYP explanation of how the system works, see
+[docs/fyp-architecture-guide.md](docs/fyp-architecture-guide.md).
+
 ## Current Stack
 
 - FastAPI for the backend API
@@ -36,6 +39,14 @@ The project currently includes:
 - Stage 3 interactive dashboard with org-scoped spend summary, cost charts, trend view, findings, resource inventory, admin sync controls, and opt-in demo seed loading
 - Stage 4 initial findings pipeline with stored waste/risk detections, evidence-backed rules, and a dashboard evidence panel
 - Live Cost Explorer billing sync for current AWS spend, including service and region breakdowns in the dashboard
+
+## How It Works
+
+- the frontend is a React app that shows login, dashboard, and admin screens
+- the backend is a FastAPI app that owns authentication, AWS sync, findings, budgets, reports, and demo seed loading
+- PostgreSQL stores organizations, users, synced AWS data, findings, recommendations, budgets, alerts, and audit logs
+- Docker Compose runs the stack locally so the frontend, backend, and database can be tested together
+- each organization has isolated data, so one tenant cannot see another tenant's AWS workspace
 
 Current session behavior:
 
