@@ -68,7 +68,11 @@ async def evaluate_budgets(db: AsyncSession, organization_id: int) -> int:
     budgets = (
         await db.execute(
             select(Budget)
-            .where(Budget.organization_id == organization_id, Budget.is_active.is_(True))
+            .where(
+                Budget.organization_id == organization_id,
+                Budget.is_active.is_(True),
+                Budget.scope != "region",
+            )
             .order_by(Budget.id.asc())
         )
     ).scalars().all()
@@ -111,7 +115,10 @@ async def list_budgets(db: AsyncSession, current_user: User) -> list[BudgetRespo
     budgets = (
         await db.execute(
             select(Budget)
-            .where(Budget.organization_id == current_user.organization_id)
+            .where(
+                Budget.organization_id == current_user.organization_id,
+                Budget.scope != "region",
+            )
             .order_by(Budget.created_at.desc(), Budget.id.desc())
         )
     ).scalars().all()
@@ -205,7 +212,11 @@ async def create_budget(db: AsyncSession, current_user: User, payload: BudgetReq
 
 async def update_budget(db: AsyncSession, current_user: User, budget_id: int, payload: BudgetRequest) -> BudgetResponse:
     budget = await db.scalar(
-        select(Budget).where(Budget.id == budget_id, Budget.organization_id == current_user.organization_id)
+        select(Budget).where(
+            Budget.id == budget_id,
+            Budget.organization_id == current_user.organization_id,
+            Budget.scope != "region",
+        )
     )
     if budget is None:
         raise ValueError("Budget not found")
@@ -261,7 +272,7 @@ async def list_alerts(db: AsyncSession, current_user: User) -> list[AlertRespons
         await db.execute(
             select(Alert, Budget)
             .join(Budget, Budget.id == Alert.budget_id)
-            .where(Alert.organization_id == current_user.organization_id)
+            .where(Alert.organization_id == current_user.organization_id, Budget.scope != "region")
             .order_by(Alert.triggered_at.desc(), Alert.id.desc())
         )
     ).all()

@@ -759,6 +759,7 @@ function BudgetsSection({
   budgetsState,
   budgetForm,
   setBudgetForm,
+  serviceOptions,
   budgetActionState,
   editingBudgetId,
   setEditingBudgetId,
@@ -766,10 +767,6 @@ function BudgetsSection({
   canManage,
 }) {
   const visibleAlerts = budgetsState.alerts.slice(0, 3);
-  const scopePlaceholder =
-    budgetForm.scope === "service"
-      ? "Amazon Elastic Compute Cloud - Compute"
-      : "us-east-1";
 
   return (
     <article className="info-card full-span-card" id="budgets">
@@ -866,7 +863,6 @@ function BudgetsSection({
             {[
               { value: "total", label: "Total spend" },
               { value: "service", label: "Service budget" },
-              { value: "region", label: "Region budget" },
             ].map((option) => (
               <button
                 key={option.value}
@@ -876,7 +872,7 @@ function BudgetsSection({
                   setBudgetForm((current) => ({
                     ...current,
                     scope: option.value,
-                    scope_value: option.value === "total" ? "" : current.scope_value,
+                    scope_value: option.value === "total" ? "" : current.scope_value || serviceOptions[0]?.value || "",
                   }))
                 }
               >
@@ -905,7 +901,7 @@ function BudgetsSection({
               <div className="budget-field-card budget-helper-card">
                 <span>Scope coverage</span>
                 <strong>Entire organization workspace</strong>
-                <p>This budget watches total synced spend across all services and regions in the current organization.</p>
+                <p>This budget watches total synced spend across all services in the current organization.</p>
                 <div className="chip-row">
                   <span className="chip info">Monthly</span>
                   <span className="chip good">No extra filter needed</span>
@@ -913,19 +909,24 @@ function BudgetsSection({
               </div>
             ) : (
               <label className="budget-field-card budget-helper-card">
-                <span>{budgetForm.scope === "service" ? "Service name" : "AWS region"}</span>
+                <span>Service name</span>
                 <div className="budget-input-shell">
-                  <input
-                    placeholder={scopePlaceholder}
+                  <select
                     value={budgetForm.scope_value}
                     onChange={(event) => setBudgetForm((current) => ({ ...current, scope_value: event.target.value }))}
-                  />
+                    disabled={serviceOptions.length === 0}
+                  >
+                    <option value="" disabled>
+                      {serviceOptions.length === 0 ? "No services available yet" : "Choose a service"}
+                    </option>
+                    {serviceOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <small>
-                  {budgetForm.scope === "service"
-                    ? "Match the AWS Cost Explorer service label exactly."
-                    : "Use the AWS region code you sync against, like us-east-1."}
-                </small>
+                <small>Choose one of the synced AWS service names from the current dashboard data.</small>
               </label>
             )}
           </div>
@@ -1882,6 +1883,20 @@ export default function DashboardPage() {
     () => findings.filter((finding) => finding.status === "open"),
     [findings]
   );
+  const budgetServiceOptions = useMemo(() => {
+    const uniqueServices = new Set();
+    const options = [];
+
+    for (const row of dashboard.byService) {
+      if (!row.key || uniqueServices.has(row.key)) {
+        continue;
+      }
+      uniqueServices.add(row.key);
+      options.push({ value: row.key, label: row.key });
+    }
+
+    return options;
+  }, [dashboard.byService]);
   const recommendations = recommendationsState.items;
 
   const systemStats = useMemo(() => {
@@ -2087,6 +2102,7 @@ export default function DashboardPage() {
               budgetsState={budgetsState}
               budgetForm={budgetForm}
               setBudgetForm={setBudgetForm}
+              serviceOptions={budgetServiceOptions}
               budgetActionState={budgetActionState}
               editingBudgetId={editingBudgetId}
               setEditingBudgetId={setEditingBudgetId}

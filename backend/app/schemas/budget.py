@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class BudgetRequest(BaseModel):
-    scope: str = Field(pattern="^(total|service|region)$")
+    scope: str = Field(pattern="^(total|service)$")
     scope_value: str = Field(default="", max_length=255)
     threshold_amount: float = Field(gt=0)
     period: str = Field(default="monthly", pattern="^monthly$")
@@ -13,8 +13,8 @@ class BudgetRequest(BaseModel):
     @classmethod
     def validate_scope_value(cls, value: str, info) -> str:
         scope = info.data.get("scope")
-        if scope in {"service", "region"} and not value.strip():
-            raise ValueError("scope_value is required for service and region budgets")
+        if scope == "service" and not value.strip():
+            raise ValueError("scope_value is required for service budgets")
         return value.strip()
 
 
