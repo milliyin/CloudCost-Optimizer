@@ -988,6 +988,196 @@ function ReportsSection({ reportState, onDownload }) {
   );
 }
 
+function CostForecastWorkbench({
+  forecastState,
+  selectedService,
+  setSelectedService,
+  horizonDays,
+  setHorizonDays,
+  onRetrain,
+  retrainState,
+  canManage,
+  serviceOptions,
+}) {
+  const { data, loading, error } = forecastState;
+
+  const combinedChartData = useMemo(() => {
+    if (!data) return [];
+    const hist = (data.historical || []).map((h) => ({
+      date: h.date,
+      actual: h.amount,
+      forecast: null,
+      lower_bound: null,
+      upper_bound: null,
+    }));
+    const fore = (data.forecast || []).map((f) => ({
+      date: f.date,
+      actual: null,
+      forecast: f.amount,
+      lower_bound: f.lower_bound,
+      upper_bound: f.upper_bound,
+    }));
+
+    if (hist.length > 0 && fore.length > 0) {
+      fore[0].actual = hist[hist.length - 1].actual;
+    }
+    return [...hist, ...fore];
+  }, [data]);
+
+  return (
+    <article className="info-card full-span-card" id="forecast">
+      <div className="chart-header">
+        <div className="chart-title">
+          <h2>Machine Learning Cost Forecast</h2>
+          <p>Supervised regression time-series forecasting with time-aware split validation and 95% confidence interval bounds.</p>
+        </div>
+        <div className="chip-row">
+          <span className="chip info">{data?.model_name || "Ridge Autoregressive"}</span>
+          <span className="chip good">Time-Aware Train/Test Split</span>
+        </div>
+      </div>
+
+      <div className="forecast-controls-row">
+        <label className="filter-label">
+          <span>Service Slice</span>
+          <select value={selectedService} onChange={(e) => setSelectedService(e.target.value)}>
+            <option value="total">Total Organization Spend</option>
+            {serviceOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="filter-label">
+          <span>Horizon</span>
+          <select value={horizonDays} onChange={(e) => setHorizonDays(Number(e.target.value))}>
+            <option value={14}>14 Days</option>
+            <option value={30}>30 Days</option>
+            <option value={60}>60 Days</option>
+            <option value={90}>90 Days</option>
+          </select>
+        </label>
+
+        {canManage ? (
+          <button className="primary-button" type="button" onClick={onRetrain} disabled={retrainState?.running}>
+            {retrainState?.running ? "Retraining..." : "Retrain ML Models"}
+          </button>
+        ) : null}
+      </div>
+
+      {retrainState?.message ? <p className="form-success">{retrainState.message}</p> : null}
+      {retrainState?.error ? <p className="form-error">{retrainState.error}</p> : null}
+
+      {data?.proactive_warnings && data.proactive_warnings.length > 0 ? (
+        <div className="warning-banner-box">
+          <div className="warning-banner-title">
+            <span className="chip warning">PROACTIVE BUDGET BREACH WARNING</span>
+            <strong>{data.proactive_warnings[0].message}</strong>
+          </div>
+          <p>
+            Our ML model projected cumulative monthly spend will exceed your threshold of{" "}
+            <strong>${data.proactive_warnings[0].threshold_amount.toFixed(2)}</strong> before month end.
+          </p>
+        </div>
+      ) : null}
+
+      {data ? (
+        <div className="metrics-summary-grid">
+          <div className="metric-pill-card">
+            <span>ML Model MAE</span>
+            <strong>${data.mae?.toFixed(2) ?? "0.00"}</strong>
+            <small>Mean Absolute Error</small>
+          </div>
+          <div className="metric-pill-card">
+            <span>ML Model RMSE</span>
+            <strong>${data.rmse?.toFixed(2) ?? "0.00"}</strong>
+            <small>Root Mean Squared Error</small>
+          </div>
+          <div className="metric-pill-card">
+            <span>Baseline Naive MAE</span>
+            <strong>${data.baseline_mae?.toFixed(2) ?? "0.00"}</strong>
+            <small>7-Day Moving Avg Baseline</small>
+          </div>
+          <div className="metric-pill-card">
+            <span>Training Data Points</span>
+            <strong>{data.data_points ?? 0} days</strong>
+            <small>Chronological samples</small>
+          </div>
+        </div>
+      ) : null}
+
+      {loading ? <p>Training & running forecast model...</p> : null}
+      {error ? <p className="form-error">{error}</p> : null}
+
+      {!loading && combinedChartData.length > 0 ? (
+        <div className="chart-shell" style={{ height: "360px", marginTop: "16px" }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={combinedChartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e4e1ee" />
+              <XAxis dataKey="date" tick={{ fill: "#777587", fontSize: 11 }} />
+              <YAxis tick={{ fill: "#777587", fontSize: 11 }} />
+              <Tooltip
+                formatter={(val, name) => [
+                  val !== null ? formatCurrency(Number(val)) : "-",
+                  name === "actual"
+                    ? "Historical Spend"
+                    : name === "forecast"
+                    ? "Predicted Forecast"
+                    : name === "upper_bound"
+                    ? "95% Upper Bound"
+                    : "95% Lower Bound",
+                ]}
+              />
+              <Legend />
+              <Line
+                type="monotone"
+                dataKey="actual"
+                stroke="#3525cd"
+                strokeWidth={3}
+                dot={{ r: 2 }}
+                name="Historical Spend"
+                connectNulls
+              />
+              <Line
+                type="monotone"
+                dataKey="forecast"
+                stroke="#8b5cf6"
+                strokeWidth={3}
+                strokeDasharray="6 6"
+                dot={{ r: 3, fill: "#8b5cf6" }}
+                name="Predicted Forecast"
+                connectNulls
+              />
+              <Line
+                type="monotone"
+                dataKey="upper_bound"
+                stroke="#d8b4fe"
+                strokeWidth={1}
+                strokeDasharray="2 2"
+                dot={false}
+                name="95% Upper Bound"
+                connectNulls
+              />
+              <Line
+                type="monotone"
+                dataKey="lower_bound"
+                stroke="#d8b4fe"
+                strokeWidth={1}
+                strokeDasharray="2 2"
+                dot={false}
+                name="95% Lower Bound"
+                connectNulls
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
 function AwsSetupGuide() {
   const policyJson = `{
   "Version": "2012-10-17",
@@ -1380,6 +1570,18 @@ export default function DashboardPage() {
     downloading: "",
     error: "",
   });
+  const [selectedForecastService, setSelectedForecastService] = useState("total");
+  const [forecastHorizonDays, setForecastHorizonDays] = useState(30);
+  const [forecastState, setForecastState] = useState({
+    loading: true,
+    error: "",
+    data: null,
+  });
+  const [retrainState, setRetrainState] = useState({
+    running: false,
+    message: "",
+    error: "",
+  });
   const [recommendationModal, setRecommendationModal] = useState({
     open: false,
     mode: "approve",
@@ -1537,6 +1739,33 @@ export default function DashboardPage() {
       cancelled = true;
     };
   }, [dateRange.end, dateRange.start, granularity, refreshKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadForecast() {
+      setForecastState((current) => ({ ...current, loading: true, error: "" }));
+      try {
+        const response = await apiFetch(`/forecast/service?service_name=${selectedForecastService}&horizon_days=${forecastHorizonDays}`);
+        const data = await response.json();
+        if (!cancelled) {
+          if (response.ok) {
+            setForecastState({ loading: false, error: "", data });
+          } else {
+            setForecastState({ loading: false, error: extractApiError(data, "Failed to load forecast"), data: null });
+          }
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setForecastState({ loading: false, error: error instanceof Error ? error.message : "Failed to load forecast", data: null });
+        }
+      }
+    }
+
+    loadForecast();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedForecastService, forecastHorizonDays, refreshKey]);
 
   useEffect(() => {
     const sectionEntries = navigationSections
@@ -1775,6 +2004,29 @@ export default function DashboardPage() {
         running: false,
         message: "",
         error: error instanceof Error ? error.message : "Failed to remove demo data",
+      });
+    }
+  }
+
+  async function handleRetrainForecast() {
+    setRetrainState({ running: true, message: "", error: "" });
+    try {
+      const response = await apiFetch("/forecast/retrain", { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(extractApiError(data, "Failed to retrain models"));
+      }
+      setRetrainState({
+        running: false,
+        message: `Models retrained successfully! (ML MAE: $${data.mae?.toFixed(2)}, Baseline MAE: $${data.baseline_mae?.toFixed(2)})`,
+        error: "",
+      });
+      setRefreshKey((current) => current + 1);
+    } catch (error) {
+      setRetrainState({
+        running: false,
+        message: "",
+        error: error instanceof Error ? error.message : "Failed to retrain models",
       });
     }
   }
@@ -2223,9 +2475,21 @@ export default function DashboardPage() {
               canManage={auth.user?.role === "admin"}
             />
 
-            <ReportsSection reportState={reportState} onDownload={handleReportDownload} />
+            <ReportsWorkbench reportState={reportState} onDownload={handleReportDownload} />
 
-            <article className="info-card full-span-card" id="forecast">
+            <CostForecastWorkbench
+              forecastState={forecastState}
+              selectedService={selectedForecastService}
+              setSelectedService={setSelectedForecastService}
+              horizonDays={forecastHorizonDays}
+              setHorizonDays={setForecastHorizonDays}
+              onRetrain={handleRetrainForecast}
+              retrainState={retrainState}
+              canManage={auth.user?.role === "admin"}
+              serviceOptions={budgetServiceOptions}
+            />
+
+            <article className="info-card full-span-card" id="executive-summary">
               <div className="chart-header">
                 <div className="chart-title">
                   <h2>Cloud fleet optimization status</h2>

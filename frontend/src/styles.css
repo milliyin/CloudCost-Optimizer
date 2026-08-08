@@ -491,6 +491,63 @@ p {
   font-weight: 700;
 }
 
+.forecast-controls-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  margin: 16px 0;
+  flex-wrap: wrap;
+}
+
+.metrics-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.metric-pill-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  padding: 12px 16px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.metric-pill-card span {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.metric-pill-card strong {
+  font-size: 1.25rem;
+  color: var(--text-main);
+  margin: 4px 0;
+}
+
+.metric-pill-card small {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.warning-banner-box {
+  background: #fffaf0;
+  border: 1px solid #feebc8;
+  border-radius: 12px;
+  padding: 16px;
+  margin: 16px 0;
+}
+
+.warning-banner-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
 .dashboard-content {
   padding: 18px 28px 28px;
 }

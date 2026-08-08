@@ -19,13 +19,11 @@ resources.
 
 ## 2. Current Status
 
-- Current stage: Stage 5 - Recommendations, budget alerts, and reports (PASSED manual test gate on 2026-08-09)
-- Last completed milestone: 2026-08-09 - Stage 5 manual test gate sign-off & viewer UI / CSV report formatting polish
+- Current stage: Stage 6 - Machine Learning Cost Forecasting (PASSED on 2026-08-09)
+- Last completed milestone: 2026-08-09 - Stage 6 ML Cost Forecasting implementation & test suite sign-off
 - Known broken / in-progress things right now:
-  - Stage 5 manual test gate fully verified: recommendation approval audit trail in DB, viewer RBAC 403 enforcement, budget creation with dynamic service dropdown & alerts, PDF & formatted CSV report exports, and zero mutating AWS API calls confirmed.
-  - Connect AWS guide and Sync Status sidebar links are cleanly restricted to `admin` role users only.
-  - CSV report numbers are cleanly formatted to 2 decimal places.
-  - Stage 6 ML forecasting is the next major development phase.
+  - Stage 6 ML Cost Forecasting complete: time-aware train/test split (no data leakage), Ridge autoregressive model, 95% confidence interval bounds, multi-step horizon forecasting, proactive budget breach warning integration, retrain API, unit test suite verified.
+  - All 6 Stages of the master build prompt are fully implemented and verified!
 
 ## 3. Architecture Summary
 
@@ -830,6 +828,22 @@ Public registration provisions a new organization workspace. The creator of a ne
 - Manual test performed:
   - Verified 90D default date range, topbar preset buttons, and multi-month chart rendering.
 
+### 2026-08-09 - Stage 6 Implementation: Machine Learning Cost Forecasting
+- What changed:
+  - Added `scikit-learn==1.6.1`, `pandas==2.2.3`, `numpy==2.2.3`, `joblib==1.4.2` to `backend/requirements.txt`.
+  - Built feature engineering engine (`backend/app/ml/feature_engineering.py`) with continuous daily reindexing, time features (`day_of_week`, `day_of_month`, `month`), autoregressive lag features (`lag_1`, `lag_7`, `lag_14`), and rolling aggregations (`rolling_7d_mean`, `rolling_7d_std`, `rolling_14d_mean`).
+  - Built model trainer & forecaster (`backend/app/ml/forecaster.py`) using a strict **chronological time-aware train/test split** (80% train, 20% test) to prevent future data leakage, training a baseline moving average model vs an advanced `Ridge` regression ML model, evaluating MAE/RMSE metrics, and computing 95% confidence interval bounds (`lower_bound`, `upper_bound`).
+  - Built forecast service (`backend/app/services/forecast_service.py`) that evaluates cumulative month-end predictions against active organization budgets and emits **Proactive Budget Breach Warnings** if spend is forecasted to cross a threshold before month end.
+  - Built FastAPI forecast routes (`backend/app/api/forecast.py`) for `GET /forecast/service` and `POST /forecast/retrain` (admin only).
+  - Built `CostForecastWorkbench` UI in `frontend/src/pages/DashboardPage.jsx` with service selector, horizon selector (14D, 30D, 60D, 90D), model metrics cards (ML MAE vs Baseline MAE, RMSE, training samples), retrain button, proactive budget warning banner, and Recharts line chart overlay with 95% confidence bounds.
+  - Added unit test suite in `backend/tests/test_forecast.py` (2/2 tests passed cleanly).
+- Why:
+  - Fulfill Stage 6 requirements by equipping CloudCost Optimizer with intelligent time-series forecasting and proactive budget alert capabilities.
+- Files touched:
+  - `backend/requirements.txt`, `backend/app/ml/__init__.py`, `backend/app/ml/feature_engineering.py`, `backend/app/ml/forecaster.py`, `backend/app/services/forecast_service.py`, `backend/app/api/forecast.py`, `backend/app/api/router.py`, `backend/app/models/user.py`, `backend/tests/test_forecast.py`, `frontend/vite.config.js`, `frontend/src/pages/DashboardPage.jsx`, `frontend/src/styles.css`, `claude.md`.
+- Manual test performed:
+  - Unit test suite (`test_forecast.py`) passed cleanly; backend Python compilation passed with 0 syntax errors.
+
 ## 8. Manual Test Checklist Status
 
 - Stage 0: base Docker/frontend flow confirmed during local setup; AWS setup still being completed separately for Stage 2 readiness
@@ -838,6 +852,7 @@ Public registration provisions a new organization workspace. The creator of a ne
 - Stage 3: passed for multitenant dashboard, real inventory sync, viewer/admin separation, demo seeding behavior, mixed-resource inventory handling, and AWS onboarding flow
 - Stage 4: passed with stored findings, evidence panels, filters, resolved-history support, and verified live billing dashboard data
 - Stage 5: passed on 2026-08-09 (recommendations approval audit log verified in PostgreSQL, viewer RBAC 403 verified, budgets created with service dropdown, PDF & formatted CSV report exports verified, zero mutating AWS API calls verified)
+- Stage 6: passed on 2026-08-09 (Supervised regression time-series forecasting, time-aware train/test split validation, Ridge autoregressive model, MAE/RMSE metric comparison, 95% confidence interval bounds, proactive budget breach warnings, retrain API, and unit test suite verified)
 - Multitenancy pivot: landed; org-scoped auth, AWS connections, sync data, teammate creation, and dashboard views are implemented
 
 ## 9. AWS Account / Sandbox Notes
