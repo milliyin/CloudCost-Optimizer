@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 
@@ -37,7 +38,9 @@ async def clear_demo_seed_workspace(db: AsyncSession, organization_id: int) -> N
             (
                 MetricSample.resource_id.like("i-demo%")
                 | MetricSample.resource_id.like("vol-demo%")
+                | MetricSample.resource_id.like("eipalloc-demo%")
                 | MetricSample.resource_id.like("db-demo%")
+                | MetricSample.resource_id.like("demo-%")
             ),
         )
     )
@@ -47,7 +50,9 @@ async def clear_demo_seed_workspace(db: AsyncSession, organization_id: int) -> N
             (
                 CloudResource.resource_id.like("i-demo%")
                 | CloudResource.resource_id.like("vol-demo%")
+                | CloudResource.resource_id.like("eipalloc-demo%")
                 | CloudResource.resource_id.like("db-demo%")
+                | CloudResource.resource_id.like("demo-%")
                 | CloudResource.tags_json.like("%demo-seed%")
             ),
         )
@@ -69,21 +74,34 @@ async def clear_workspace_for_demo_seed(db: AsyncSession, organization_id: int) 
 
 
 def _build_cost_records(organization_id: int, today: date) -> list[CostRecord]:
-    start_date = today - timedelta(days=44)
+    start_date = today - timedelta(days=89)
     services = [
-        ("Amazon Elastic Compute Cloud - Compute", "us-east-1", "BoxUsage:t3.micro", 2.8),
-        ("Amazon Relational Database Service", "us-east-1", "InstanceUsage:db.t3.micro", 1.9),
-        ("Amazon Simple Storage Service", "us-east-1", "TimedStorage-ByteHrs", 0.75),
-        ("AWS Lambda", "us-east-1", "Lambda-GB-Second", 0.35),
+        ("Amazon Elastic Compute Cloud - Compute", "us-east-1", "BoxUsage:t3.micro", 4.5),
+        ("Amazon Relational Database Service", "us-east-1", "InstanceUsage:db.t3.micro", 2.8),
+        ("Amazon Simple Storage Service", "us-east-1", "TimedStorage-ByteHrs", 1.25),
+        ("AWS Lambda", "us-east-1", "Lambda-GB-Second", 0.45),
+        ("Amazon CloudWatch", "us-east-1", "DataProcessing-Bytes", 0.35),
+        ("Amazon DynamoDB", "us-east-1", "ReadCapacityUnit-Hrs", 0.85),
+        ("Elastic Load Balancing", "us-east-1", "LCUUsage", 1.55),
+        ("Amazon EC2-Container Service", "us-east-1", "Fargate-vCPU-Hours", 0.75),
     ]
 
     records: list[CostRecord] = []
-    for offset in range(45):
+    for offset in range(90):
         current_date = start_date + timedelta(days=offset)
-        wave = (offset % 7) * 0.14
-        weekend_discount = -0.22 if current_date.weekday() >= 5 else 0
+        # Organic growth trend over 90 days (+20%)
+        growth_trend = (offset / 89.0) * 0.95
+        # Harmonic sine/cosine wave for realistic traffic cycles
+        cycle_wave = math.sin(offset / 4.0) * 0.25 + math.cos(offset / 7.0) * 0.15
+        # Weekend drop (SaaS usage dips on Sat/Sun)
+        weekend_drop = -0.35 if current_date.weekday() >= 5 else 0.05
+        # Mid-month batch processing spike on 14th-16th
+        batch_spike = 0.65 if current_date.day in (14, 15, 16) else 0.0
+
         for index, (service, region, usage_type, baseline) in enumerate(services):
-            amount = baseline + wave + (index * 0.11) + weekend_discount
+            # Apply slight service-specific multiplier variance
+            service_variance = math.sin(offset / 3.0 + index) * 0.12
+            amount = baseline + growth_trend + cycle_wave + weekend_drop + batch_spike + service_variance
             records.append(
                 CostRecord(
                     organization_id=organization_id,
@@ -107,7 +125,7 @@ def _build_resource_records(organization_id: int, now: datetime) -> list[CloudRe
             "region": "us-east-1",
             "state": "running",
             "instance_type": "t3.micro",
-            "tags": {"Name": "demo-web-1", "Environment": "demo", "ManagedBy": "demo-seed"},
+            "tags": {"Name": "demo-web-idle", "Environment": "demo", "ManagedBy": "demo-seed"},
         },
         {
             "resource_id": "i-demoapp02",
@@ -115,15 +133,56 @@ def _build_resource_records(organization_id: int, now: datetime) -> list[CloudRe
             "region": "us-east-1",
             "state": "running",
             "instance_type": "t3.small",
-            "tags": {"Name": "demo-worker-1", "Environment": "demo", "ManagedBy": "demo-seed"},
+            "tags": {"Name": "demo-worker-underutilized", "Environment": "demo", "ManagedBy": "demo-seed"},
+        },
+        {
+            "resource_id": "i-demoapp03",
+            "resource_type": "ec2_instance",
+            "region": "us-east-1",
+            "state": "running",
+            "instance_type": "c5.xlarge",
+            "tags": {"Name": "demo-analytics-mismatch", "Environment": "demo", "ManagedBy": "demo-seed"},
         },
         {
             "resource_id": "vol-demo001",
             "resource_type": "ebs_volume",
             "region": "us-east-1",
             "state": "in-use",
+            "instance_type": "gp3",
+            "tags": {
+                "Name": "demo-app-volume",
+                "Environment": "demo",
+                "ManagedBy": "demo-seed",
+                "attachments": [{"InstanceId": "i-demoapp01", "State": "attached"}],
+            },
+        },
+        {
+            "resource_id": "vol-demo002",
+            "resource_type": "ebs_volume",
+            "region": "us-east-1",
+            "state": "available",
+            "instance_type": "gp2",
+            "tags": {
+                "Name": "demo-unattached-backup-volume",
+                "Environment": "demo",
+                "ManagedBy": "demo-seed",
+                "attachments": [],
+            },
+        },
+        {
+            "resource_id": "eipalloc-demo001",
+            "resource_type": "elastic_ip",
+            "region": "us-east-1",
+            "state": "unassociated",
             "instance_type": "",
-            "tags": {"Name": "demo-app-volume", "Environment": "demo", "ManagedBy": "demo-seed"},
+            "tags": {
+                "Name": "demo-unassociated-eip",
+                "Environment": "demo",
+                "ManagedBy": "demo-seed",
+                "public_ip": "54.210.12.99",
+                "allocation_id": "eipalloc-demo001",
+                "association_id": "",
+            },
         },
         {
             "resource_id": "db-demo-postgres",
@@ -132,6 +191,14 @@ def _build_resource_records(organization_id: int, now: datetime) -> list[CloudRe
             "state": "available",
             "instance_type": "db.t3.micro",
             "tags": {"Name": "demo-postgres", "Environment": "demo", "ManagedBy": "demo-seed"},
+        },
+        {
+            "resource_id": "demo-analytics-bucket",
+            "resource_type": "s3_bucket",
+            "region": "us-east-1",
+            "state": "active",
+            "instance_type": "",
+            "tags": {"Name": "demo-analytics-bucket", "Environment": "demo", "ManagedBy": "demo-seed"},
         },
     ]
 
@@ -152,14 +219,20 @@ def _build_resource_records(organization_id: int, now: datetime) -> list[CloudRe
 
 def _build_metric_samples(organization_id: int, now: datetime) -> list[MetricSample]:
     metric_points = [
-        ("i-demoapp01", "CPUUtilization", [11.8, 16.2, 14.9]),
-        ("i-demoapp01", "NetworkIn", [182.4, 221.1, 205.7]),
-        ("i-demoapp01", "NetworkOut", [145.3, 176.8, 168.2]),
-        ("i-demoapp02", "CPUUtilization", [28.2, 34.5, 31.1]),
-        ("i-demoapp02", "NetworkIn", [91.6, 104.7, 112.2]),
-        ("i-demoapp02", "NetworkOut", [120.5, 139.1, 133.4]),
+        # i-demoapp01: Idle instance (CPU < 5%, low network)
+        ("i-demoapp01", "CPUUtilization", [3.2, 3.8, 3.5, 4.1]),
+        ("i-demoapp01", "NetworkIn", [150.0, 180.0, 160.0, 170.0]),
+        ("i-demoapp01", "NetworkOut", [120.0, 140.0, 130.0, 135.0]),
+        # i-demoapp02: Underutilized instance (CPU 15-20%)
+        ("i-demoapp02", "CPUUtilization", [16.5, 18.2, 17.1, 19.0]),
+        ("i-demoapp02", "NetworkIn", [450.0, 520.0, 480.0, 500.0]),
+        ("i-demoapp02", "NetworkOut", [380.0, 410.0, 390.0, 420.0]),
+        # i-demoapp03: Oversized mismatch (CPU 88-95%)
+        ("i-demoapp03", "CPUUtilization", [89.5, 92.3, 91.0, 94.8]),
+        ("i-demoapp03", "NetworkIn", [2500.0, 2800.0, 2600.0, 2750.0]),
+        ("i-demoapp03", "NetworkOut", [2100.0, 2400.0, 2300.0, 2350.0]),
     ]
-    timestamps = [now - timedelta(hours=2), now - timedelta(hours=1), now]
+    timestamps = [now - timedelta(hours=3), now - timedelta(hours=2), now - timedelta(hours=1), now]
 
     samples: list[MetricSample] = []
     for resource_id, metric_name, values in metric_points:
@@ -210,3 +283,9 @@ async def seed_demo_workspace(db: AsyncSession, current_user: User) -> DemoSeedS
         metric_samples_seeded=len(metric_samples),
         aws_connection_removed=aws_connection_removed,
     )
+
+
+async def remove_demo_seed(db: AsyncSession, current_user: User) -> None:
+    organization_id = current_user.organization_id
+    await clear_workspace_for_demo_seed(db, organization_id)
+    await db.commit()

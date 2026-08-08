@@ -454,6 +454,35 @@ p {
   justify-content: flex-end;
 }
 
+.topbar-date-picker {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  padding: 4px 6px;
+  border-radius: 999px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.topbar-date-picker button {
+  border: none;
+  background: transparent;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.topbar-date-picker button.active,
+.topbar-date-picker button:hover {
+  background: var(--primary);
+  color: #ffffff;
+}
+
 .topbar-org {
   padding: 10px 14px;
   border-radius: 999px;

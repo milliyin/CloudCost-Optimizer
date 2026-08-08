@@ -33,7 +33,7 @@ async def register_user(payload: RegisterRequest, db: DbSession) -> User:
         email=payload.email,
         hashed_password=hash_password(payload.password),
         organization_id=organization.id,
-        role=payload.role,
+        role=UserRole.ADMIN,
     )
     db.add(user)
     await db.commit()

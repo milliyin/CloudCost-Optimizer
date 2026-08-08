@@ -25,12 +25,17 @@ async def build_csv_report(db: AsyncSession, current_user: User) -> str:
     buffer = StringIO()
     writer = csv.writer(buffer)
 
+    def fmt_num(val: float | int | None) -> str:
+        if val is None:
+            return "n/a"
+        return f"{val:.2f}"
+
     writer.writerow(["CloudCost Optimizer Report"])
     writer.writerow([])
     writer.writerow(["Spend summary"])
-    writer.writerow(["Current month spend", summary.current_month_spend, summary.currency])
-    writer.writerow(["Prior month spend", summary.prior_month_spend, summary.currency])
-    writer.writerow(["Percent change", summary.percent_change if summary.percent_change is not None else "n/a"])
+    writer.writerow(["Current month spend", fmt_num(summary.current_month_spend), summary.currency])
+    writer.writerow(["Prior month spend", fmt_num(summary.prior_month_spend), summary.currency])
+    writer.writerow(["Percent change", f"{summary.percent_change:.2f}%" if summary.percent_change is not None else "n/a"])
     writer.writerow(["Top service", summary.top_service or "n/a"])
     writer.writerow([])
     writer.writerow(["Findings"])
@@ -47,7 +52,7 @@ async def build_csv_report(db: AsyncSession, current_user: User) -> str:
                 recommendation.action_type,
                 recommendation.resource_id,
                 recommendation.status,
-                recommendation.estimated_monthly_savings if recommendation.estimated_monthly_savings is not None else "",
+                fmt_num(recommendation.estimated_monthly_savings) if recommendation.estimated_monthly_savings is not None else "",
                 recommendation.decided_at.isoformat() if recommendation.decided_at else "",
             ]
         )

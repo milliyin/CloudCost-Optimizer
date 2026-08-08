@@ -19,15 +19,13 @@ resources.
 
 ## 2. Current Status
 
-- Current stage: Stage 5 - Recommendations, budget alerts, and reports (initial pass complete; manual test gate pending)
-- Last completed milestone: 2026-07-14 - Stage 5 backend and dashboard foundation with budget UI polish and stale-recommendation reconciliation
+- Current stage: Stage 5 - Recommendations, budget alerts, and reports (PASSED manual test gate on 2026-08-09)
+- Last completed milestone: 2026-08-09 - Stage 5 manual test gate sign-off & viewer UI / CSV report formatting polish
 - Known broken / in-progress things right now:
-  - Stage 5 adds org-scoped recommendations with admin approve/reject workflow, audit logging, monthly budgets with DB-backed alerts, and PDF/CSV report export via `reportlab`.
-  - Budget alerts are persisted and surfaced in the dashboard only; SES email delivery is intentionally not wired up yet and should be treated as log/DB-only behavior.
-  - The budget creator UI now uses product-style controls: scope pills, a `$` amount input shell, a helper card for total budgets, and conditional service/region fields.
-  - Stale pending recommendations auto-close when their underlying finding resolves, and recommendation data reconciles on list load so resolved findings stop showing as active warnings without waiting for another sync.
-  - PDF export works but a follow-up typography/spacing polish pass is still desirable; logic is in place, presentation can improve.
-  - Stage 5 manual test gate from `prompt.md` has not been formally signed off in this session yet.
+  - Stage 5 manual test gate fully verified: recommendation approval audit trail in DB, viewer RBAC 403 enforcement, budget creation with dynamic service dropdown & alerts, PDF & formatted CSV report exports, and zero mutating AWS API calls confirmed.
+  - Connect AWS guide and Sync Status sidebar links are cleanly restricted to `admin` role users only.
+  - CSV report numbers are cleanly formatted to 2 decimal places.
+  - Stage 6 ML forecasting is the next major development phase.
 
 ## 3. Architecture Summary
 
@@ -286,6 +284,18 @@ Budget evaluation compares current-month synced spend against active budgets and
 persists `Alert` rows when thresholds are breached. SES email delivery is
 intentionally stubbed/not implemented; alerts appear in the dashboard and
 database only, and this should be documented honestly in demos.
+
+### 2026-07-21 - FYP Architecture Guide created for project presentation
+
+To simplify academic viva defense and project handoff, we created `docs/fyp-architecture-guide.md` summarizing the project concepts, end-to-end data flows, stage breakdowns, API routes, data models, sync pipeline, findings engine, recommendation safety guarantees, budget flow, report generation, and viva presentation talking points.
+
+### 2026-08-05 - Narrow budget scope to Total and Service spend, with dynamic service dropdown
+
+Region budgets added unnecessary complexity and were rarely queried separately from service cost breakdowns. We removed `region` scope from the budget schema and backend evaluation (ignoring legacy DB rows), and replaced the service text field in the frontend with a dynamic dropdown select element fed directly from the organization's synced AWS service spend (`byServiceData`). This prevents typos in service names and ensures users only create budgets for actual tracked services.
+
+### 2026-08-09 - Remove role selector from public registration and default to admin
+
+Public registration provisions a new organization workspace. The creator of a new client workspace is the workspace owner and must always be an `admin` so they can configure AWS connections and manage teammates. We removed the Role selection dropdown from `RegisterPage.jsx` and updated `POST /auth/register` to always default and enforce `UserRole.ADMIN` upon registration.
 
 ## 5. Environment Variables / Secrets Reference
 
@@ -749,6 +759,77 @@ database only, and this should be documented honestly in demos.
   - Budget alerts are DB/dashboard-only until SES is intentionally added later.
   - Stage 6 ML forecasting remains blocked until enough historical billing data accumulates.
 
+### 2026-07-21 - Add and expand FYP architecture guide
+- What changed:
+  - Added `docs/fyp-architecture-guide.md` explaining system architecture, end-to-end data flow, 4-layer design, Stage 0-4 milestones, API list, database schema, sync pipeline, findings/recommendations engine, multitenancy, and viva presentation notes.
+  - Updated `README.md` to reference the FYP guide.
+- Why:
+  - Provide a clear, comprehensive reference for final-year project evaluations and oral presentations.
+- Files touched:
+  - `docs/fyp-architecture-guide.md`, `README.md`.
+- Manual test performed:
+  - Verified markdown rendering and accuracy against backend routes, database schema, and frontend sections.
+- Anything the next session needs to know:
+  - Use this guide when preparing project documentation or explaining system mechanics to evaluators.
+
+### 2026-08-05 - Budget schema and UI refactoring (remove Region budget & add Service dropdown)
+- What changed:
+  - Updated `backend/app/schemas/budget.py` to narrow `scope` validation to `total` and `service` only (removed `region`).
+  - Updated `backend/app/services/budget_service.py` to ignore legacy `region` budget records during budget evaluation and alerts processing.
+  - Updated `frontend/src/pages/DashboardPage.jsx` to remove the "Region" scope pill and input completely, and replaced the "Service" budget text input with a dynamic `<select>` dropdown populated from synced AWS service spend (`byServiceData`).
+- Why:
+  - Streamline budget management, eliminate potential typos in service name strings, and drop unnecessary region budget overhead.
+- Files touched:
+  - `backend/app/schemas/budget.py`, `backend/app/services/budget_service.py`, `frontend/src/pages/DashboardPage.jsx`.
+- Manual test performed:
+  - Container compile pass completed; frontend budget creator verified with scope pills and service dropdown.
+- Anything the next session needs to know:
+  - Old region budget rows in the DB are silently skipped during budget evaluation. New budgets can only be created for Total spend or specific synced AWS services via the dropdown.
+
+### 2026-08-09 - Stage 5 manual test gate sign-off and viewer UI / CSV polish
+- What changed:
+  - Formally verified all Stage 5 manual test criteria: recommendation approval audit trail in PostgreSQL (`recommendation.approved`), viewer RBAC 403 security enforcement, budget creation with dynamic service dropdown & alert generation, PDF & CSV report exports, and zero mutating AWS API calls (`git grep`).
+  - Updated `frontend/src/pages/DashboardPage.jsx` to hide `AwsSetupGuide` and `Connect AWS` / `Sync Status` sidebar links for `viewer` role users.
+  - Updated `backend/app/services/report_service.py` to format floating point numbers cleanly to 2 decimal places (`fmt_num`) in CSV report export.
+- Why:
+  - Complete Stage 5 sign-off and clean up viewer experience and report export precision.
+- Files touched:
+  - `frontend/src/pages/DashboardPage.jsx`, `backend/app/services/report_service.py`, `claude.md`.
+- Manual test performed:
+  - Recommendation audit log verified in DB (`SELECT * FROM audit_logs`).
+  - Viewer RBAC 403 API response verified.
+  - Budget creation with dynamic service dropdown verified.
+  - PDF & CSV exports verified.
+  - `git grep -i -E "stop_instances|terminate_instances|delete_volume|modify_instance"` verified zero matches in codebase.
+- Anything the next session needs to know:
+  - Stage 5 is fully signed off and passed. Ready for Stage 6 ML forecasting.
+
+### 2026-08-09 - Default public registration to admin role and remove Role dropdown
+- What changed:
+  - Removed the Role dropdown UI select field from `frontend/src/pages/RegisterPage.jsx`.
+  - Set default `role: "admin"` in `initialForm` on frontend.
+  - Updated `RegisterRequest` schema in `backend/app/schemas/auth.py` to default `role` to `UserRole.ADMIN`.
+  - Updated `POST /auth/register` endpoint in `backend/app/api/auth.py` to enforce `role=UserRole.ADMIN` on new organization workspace registration.
+- Why:
+  - Starting a new organization workspace requires admin capabilities (AWS connection setup, teammate creation). Exposing a viewer option during public workspace creation was redundant.
+- Files touched:
+  - `frontend/src/pages/RegisterPage.jsx`, `backend/app/schemas/auth.py`, `backend/app/api/auth.py`, `claude.md`.
+- Manual test performed:
+  - Verified registration form UI renders cleanly without Role selector and registers new workspace owner as admin.
+
+### 2026-08-09 - Add topbar date range presets and enriched 90-day demo dataset
+- What changed:
+  - Enriched `_build_cost_records()` in `backend/app/services/demo_seed.py` to generate 90 days of cost history across 8 AWS services with organic growth trends, weekend dips, and mid-month batch spikes.
+  - Added topbar date range preset buttons (`30D`, `90D`, `6M`, `1Y`) in `frontend/src/pages/DashboardPage.jsx` and styling in `frontend/src/styles.css`.
+  - Updated default workspace date range to 90 days (`getPresetDateRange(90)`) so the Monthly spend trend chart displays multiple months cleanly.
+  - Added auto-expansion logic when switching to `monthly` granularity if the active date range spans less than 3 months.
+- Why:
+  - Provide rich historical time-series data for Stage 6 ML forecasting and give users intuitive controls to inspect multi-month spend history.
+- Files touched:
+  - `backend/app/services/demo_seed.py`, `frontend/src/pages/DashboardPage.jsx`, `frontend/src/styles.css`, `claude.md`.
+- Manual test performed:
+  - Verified 90D default date range, topbar preset buttons, and multi-month chart rendering.
+
 ## 8. Manual Test Checklist Status
 
 - Stage 0: base Docker/frontend flow confirmed during local setup; AWS setup still being completed separately for Stage 2 readiness
@@ -756,7 +837,7 @@ database only, and this should be documented honestly in demos.
 - Stage 2: passed for resource inventory, CloudWatch metric sync, and live Cost Explorer billing persistence
 - Stage 3: passed for multitenant dashboard, real inventory sync, viewer/admin separation, demo seeding behavior, mixed-resource inventory handling, and AWS onboarding flow
 - Stage 4: passed with stored findings, evidence panels, filters, resolved-history support, and verified live billing dashboard data
-- Stage 5: initial implementation complete; formal manual test gate pending (recommendations approve/reject audit trail, viewer 403 on approve, budget alert generation, PDF/CSV export, mutating-AWS-API grep verification)
+- Stage 5: passed on 2026-08-09 (recommendations approval audit log verified in PostgreSQL, viewer RBAC 403 verified, budgets created with service dropdown, PDF & formatted CSV report exports verified, zero mutating AWS API calls verified)
 - Multitenancy pivot: landed; org-scoped auth, AWS connections, sync data, teammate creation, and dashboard views are implemented
 
 ## 9. AWS Account / Sandbox Notes

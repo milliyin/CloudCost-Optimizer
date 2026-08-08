@@ -5,7 +5,7 @@ const initialForm = {
   organization_name: "",
   email: "",
   password: "",
-  role: "viewer",
+  role: "admin",
 };
 
 export default function RegisterPage() {
@@ -82,7 +82,7 @@ export default function RegisterPage() {
 
       <div className="auth-panel">
         <section className="auth-card">
-          <p className="eyebrow">Role-based access</p>
+          <p className="eyebrow">Organization Admin</p>
           <h2>Create an account</h2>
           <p className="lede">Start a new organization workspace.</p>
           <form className="auth-form" onSubmit={handleSubmit}>
@@ -113,16 +113,6 @@ export default function RegisterPage() {
                 value={form.password}
                 onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
               />
-            </label>
-            <label>
-              <span>Role</span>
-              <select
-                value={form.role}
-                onChange={(event) => setForm((current) => ({ ...current, role: event.target.value }))}
-              >
-                <option value="viewer">viewer</option>
-                <option value="admin">admin</option>
-              </select>
             </label>
             {error ? <p className="form-error">{error}</p> : null}
             {success ? <p className="form-success">{success}</p> : null}

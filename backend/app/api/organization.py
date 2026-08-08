@@ -15,7 +15,7 @@ from app.schemas.organization import (
     OrganizationContextResponse,
 )
 from app.services.crypto import encrypt_secret
-from app.services.demo_seed import seed_demo_workspace
+from app.services.demo_seed import remove_demo_seed, seed_demo_workspace
 
 router = APIRouter(prefix="/organization", tags=["organization"])
 
@@ -90,3 +90,12 @@ async def seed_organization_demo_workspace(
             aws_connection_removed=summary.aws_connection_removed,
         ),
     )
+
+
+@router.post("/demo-clear")
+async def clear_organization_demo_workspace(
+    db: DbSession,
+    current_user: Annotated[User, Depends(require_role(UserRole.ADMIN))],
+) -> dict[str, str]:
+    await remove_demo_seed(db, current_user)
+    return {"message": "Demo data successfully removed from this workspace."}

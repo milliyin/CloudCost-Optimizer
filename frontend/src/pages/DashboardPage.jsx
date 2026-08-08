@@ -133,21 +133,26 @@ function formatBudgetScope(scope, scopeValue) {
   return `${scope}: ${scopeValue}`;
 }
 
-function buildDefaultDateRange() {
+function getPresetDateRange(days) {
   const end = new Date();
   const start = new Date();
-  start.setDate(end.getDate() - 29);
+  start.setDate(end.getDate() - (days - 1));
   return {
     start: start.toISOString().slice(0, 10),
     end: end.toISOString().slice(0, 10),
   };
 }
 
-function EmptyState({ title, description }) {
+function buildDefaultDateRange() {
+  return getPresetDateRange(90);
+}
+
+function EmptyState({ title, description, action }) {
   return (
     <div className="empty-state">
       <h3>{title}</h3>
       <p>{description}</p>
+      {action ? <div style={{ marginTop: "12px" }}>{action}</div> : null}
     </div>
   );
 }
@@ -1093,6 +1098,8 @@ function OperationsPanel({
   handleManualSync,
   demoSeedState,
   handleDemoSeed,
+  demoClearState,
+  handleDemoClear,
   teammateForm,
   teammateState,
   setTeammateForm,
@@ -1144,8 +1151,11 @@ function OperationsPanel({
             <button className="primary-button" type="button" onClick={handleManualSync} disabled={syncState.running}>
               {syncState.running ? "Running sync..." : "Run sync now"}
             </button>
-            <button className="secondary-button" type="button" onClick={handleDemoSeed} disabled={demoSeedState.running}>
+            <button className="secondary-button" type="button" onClick={handleDemoSeed} disabled={demoSeedState.running || demoClearState?.running}>
               {demoSeedState.running ? "Loading demo..." : "Load demo data"}
+            </button>
+            <button className="secondary-button danger-tone" type="button" onClick={handleDemoClear} disabled={demoSeedState.running || demoClearState?.running}>
+              {demoClearState?.running ? "Removing demo..." : "Remove demo data"}
             </button>
           </div>
 
@@ -1153,6 +1163,8 @@ function OperationsPanel({
           {syncState.message ? <p className="form-success">{syncState.message}</p> : null}
           {demoSeedState.error ? <p className="form-error">{demoSeedState.error}</p> : null}
           {demoSeedState.message ? <p className="form-success">{demoSeedState.message}</p> : null}
+          {demoClearState?.error ? <p className="form-error">{demoClearState.error}</p> : null}
+          {demoClearState?.message ? <p className="form-success">{demoClearState.message}</p> : null}
 
           {syncState.summary ? (
             <dl className="facts-list sync-summary">
@@ -1277,6 +1289,7 @@ export default function DashboardPage() {
   const auth = useAuth();
   const [activeSection, setActiveSection] = useState("overview");
   const [dateRange, setDateRange] = useState(buildDefaultDateRange);
+  const [activePreset, setActivePreset] = useState(90);
   const [granularity, setGranularity] = useState("daily");
   const [refreshKey, setRefreshKey] = useState(0);
   const [dashboard, setDashboard] = useState({
@@ -1340,6 +1353,11 @@ export default function DashboardPage() {
     message: "",
     error: "",
     summary: null,
+  });
+  const [demoClearState, setDemoClearState] = useState({
+    running: false,
+    message: "",
+    error: "",
   });
   const [recommendationActionState, setRecommendationActionState] = useState({
     runningId: null,
@@ -1685,6 +1703,11 @@ export default function DashboardPage() {
         error: "",
         summary: data.summary ?? null,
       });
+      setDemoClearState({
+        running: false,
+        message: "",
+        error: "",
+      });
       setSyncState({
         running: false,
         message: "",
@@ -1698,6 +1721,60 @@ export default function DashboardPage() {
         message: "",
         error: error instanceof Error ? error.message : "Failed to load demo workspace",
         summary: null,
+      });
+    }
+  }
+
+  function handleApplyPreset(days) {
+    setActivePreset(days);
+    setDateRange(getPresetDateRange(days));
+  }
+
+  function handleGranularityChange(newGranularity) {
+    setGranularity(newGranularity);
+    if (newGranularity === "monthly") {
+      const startMs = new Date(dateRange.start).getTime();
+      const endMs = new Date(dateRange.end).getTime();
+      const dayDiff = Math.round((endMs - startMs) / (1000 * 60 * 60 * 24));
+      if (dayDiff < 85) {
+        setDateRange(getPresetDateRange(90));
+        setActivePreset(90);
+      }
+    }
+  }
+
+  async function handleDemoClear() {
+    setDemoClearState({
+      running: true,
+      message: "",
+      error: "",
+    });
+
+    try {
+      const response = await apiFetch("/organization/demo-clear", { method: "POST" });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(extractApiError(data, "Failed to remove demo data"));
+      }
+
+      setDemoClearState({
+        running: false,
+        message: data.message ?? "Demo data removed successfully.",
+        error: "",
+      });
+      setDemoSeedState({
+        running: false,
+        message: "",
+        error: "",
+        summary: null,
+      });
+      setRefreshKey((current) => current + 1);
+    } catch (error) {
+      setDemoClearState({
+        running: false,
+        message: "",
+        error: error instanceof Error ? error.message : "Failed to remove demo data",
       });
     }
   }
@@ -1934,14 +2011,18 @@ export default function DashboardPage() {
             <span className="sidebar-icon">#</span>
             <span>Resource Inventory</span>
           </a>
-          <a className={`sidebar-link ${activeSection === "connect-aws" ? "active" : ""}`} href="#connect-aws">
-            <span className="sidebar-icon">*</span>
-            <span>Connect AWS</span>
-          </a>
-          <a className={`sidebar-link ${activeSection === "operations" ? "active" : ""}`} href="#operations">
-            <span className="sidebar-icon">@</span>
-            <span>Sync Status</span>
-          </a>
+          {auth.user?.role === "admin" ? (
+            <>
+              <a className={`sidebar-link ${activeSection === "connect-aws" ? "active" : ""}`} href="#connect-aws">
+                <span className="sidebar-icon">*</span>
+                <span>Connect AWS</span>
+              </a>
+              <a className={`sidebar-link ${activeSection === "operations" ? "active" : ""}`} href="#operations">
+                <span className="sidebar-icon">@</span>
+                <span>Sync Status</span>
+              </a>
+            </>
+          ) : null}
         </div>
 
         <div className="sidebar-section">
@@ -1986,6 +2067,36 @@ export default function DashboardPage() {
         <header className="dashboard-topbar">
           <h1>{activeSectionLabel}</h1>
           <div className="dashboard-topbar-tools">
+            <div className="topbar-date-picker">
+              <button
+                className={activePreset === 30 ? "active" : ""}
+                type="button"
+                onClick={() => handleApplyPreset(30)}
+              >
+                30D
+              </button>
+              <button
+                className={activePreset === 90 ? "active" : ""}
+                type="button"
+                onClick={() => handleApplyPreset(90)}
+              >
+                90D
+              </button>
+              <button
+                className={activePreset === 180 ? "active" : ""}
+                type="button"
+                onClick={() => handleApplyPreset(180)}
+              >
+                6M
+              </button>
+              <button
+                className={activePreset === 365 ? "active" : ""}
+                type="button"
+                onClick={() => handleApplyPreset(365)}
+              >
+                1Y
+              </button>
+            </div>
             <span className="topbar-org">{auth.user?.organization?.name ?? "workspace"}</span>
           </div>
         </header>
@@ -2046,7 +2157,7 @@ export default function DashboardPage() {
               data={dashboard.trend}
               loading={dashboard.loading}
               granularity={granularity}
-              onGranularityChange={setGranularity}
+              onGranularityChange={handleGranularityChange}
             />
             <FindingsFeed findings={openFindings} loading={findingsState.loading} isSimulatedWorkspace={isSimulatedWorkspace} />
             <CostBreakdownChart
@@ -2064,7 +2175,7 @@ export default function DashboardPage() {
 
             <ResourceTable data={dashboard.resources} loading={dashboard.loading} />
 
-            <AwsSetupGuide />
+            {auth.user?.role === "admin" ? <AwsSetupGuide /> : null}
 
             {auth.user?.role === "admin" ? (
               <OperationsPanel
@@ -2078,6 +2189,8 @@ export default function DashboardPage() {
                 handleManualSync={handleManualSync}
                 demoSeedState={demoSeedState}
                 handleDemoSeed={handleDemoSeed}
+                demoClearState={demoClearState}
+                handleDemoClear={handleDemoClear}
                 teammateForm={teammateForm}
                 teammateState={teammateState}
                 setTeammateForm={setTeammateForm}
