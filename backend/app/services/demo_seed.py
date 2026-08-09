@@ -73,7 +73,7 @@ async def clear_workspace_for_demo_seed(db: AsyncSession, organization_id: int) 
     await db.execute(delete(CostRecord).where(CostRecord.organization_id == organization_id))
 
 
-def _build_cost_records(organization_id: int, today: date) -> list[CostRecord]:
+def _build_cost_records(organization_id: int, today: date, scenario: str = "organic") -> list[CostRecord]:
     start_date = today - timedelta(days=89)
     services = [
         ("Amazon Elastic Compute Cloud - Compute", "us-east-1", "BoxUsage:t3.micro", 4.5),
@@ -89,19 +89,31 @@ def _build_cost_records(organization_id: int, today: date) -> list[CostRecord]:
     records: list[CostRecord] = []
     for offset in range(90):
         current_date = start_date + timedelta(days=offset)
-        # Organic growth trend over 90 days (+20%)
-        growth_trend = (offset / 89.0) * 0.95
-        # Harmonic sine/cosine wave for realistic traffic cycles
-        cycle_wave = math.sin(offset / 4.0) * 0.25 + math.cos(offset / 7.0) * 0.15
-        # Weekend drop (SaaS usage dips on Sat/Sun)
-        weekend_drop = -0.35 if current_date.weekday() >= 5 else 0.05
-        # Mid-month batch processing spike on 14th-16th
-        batch_spike = 0.65 if current_date.day in (14, 15, 16) else 0.0
 
         for index, (service, region, usage_type, baseline) in enumerate(services):
-            # Apply slight service-specific multiplier variance
-            service_variance = math.sin(offset / 3.0 + index) * 0.12
-            amount = baseline + growth_trend + cycle_wave + weekend_drop + batch_spike + service_variance
+            if scenario == "volatile":
+                # High volatility, random multi-fold spikes, wide confidence intervals
+                spike_multiplier = 3.2 if (offset % 11 == 0 or offset % 17 == 0) else 1.0
+                noise = math.sin(offset * 1.7 + index * 2) * 1.4 + math.cos(offset * 2.3) * 0.9
+                amount = (baseline + noise) * spike_multiplier
+            elif scenario == "escalating":
+                # Exponential cost growth simulating unoptimized scaling or runaway cluster
+                exp_factor = math.exp(offset / 48.0)
+                weekend_drop = -0.2 if current_date.weekday() >= 5 else 0.05
+                amount = (baseline * exp_factor) + weekend_drop
+            elif scenario == "seasonal":
+                # Strict 7-day cyclical periodicity ideal for lag_7 autoregressive modeling
+                cycle_7d = math.sin((offset % 7) / 7.0 * 2 * math.pi) * 1.8
+                weekend_drop = -0.5 if current_date.weekday() >= 5 else 0.2
+                amount = baseline + cycle_7d + weekend_drop
+            else:  # organic (default)
+                growth_trend = (offset / 89.0) * 0.95
+                cycle_wave = math.sin(offset / 4.0) * 0.25 + math.cos(offset / 7.0) * 0.15
+                weekend_drop = -0.35 if current_date.weekday() >= 5 else 0.05
+                batch_spike = 0.65 if current_date.day in (14, 15, 16) else 0.0
+                service_variance = math.sin(offset / 3.0 + index) * 0.12
+                amount = baseline + growth_trend + cycle_wave + weekend_drop + batch_spike + service_variance
+
             records.append(
                 CostRecord(
                     organization_id=organization_id,
@@ -251,7 +263,7 @@ def _build_metric_samples(organization_id: int, now: datetime) -> list[MetricSam
     return samples
 
 
-async def seed_demo_workspace(db: AsyncSession, current_user: User) -> DemoSeedSummary:
+async def seed_demo_workspace(db: AsyncSession, current_user: User, scenario: str = "organic") -> DemoSeedSummary:
     organization_id = current_user.organization_id
     existing_connection = await db.scalar(
         select(AWSConnection).where(AWSConnection.organization_id == organization_id)
@@ -265,7 +277,7 @@ async def seed_demo_workspace(db: AsyncSession, current_user: User) -> DemoSeedS
         aws_connection_removed = True
 
     now = datetime.combine(date.today(), time(12, 0), tzinfo=timezone.utc)
-    cost_records = _build_cost_records(organization_id, now.date())
+    cost_records = _build_cost_records(organization_id, now.date(), scenario=scenario)
     resource_records = _build_resource_records(organization_id, now)
     metric_samples = _build_metric_samples(organization_id, now)
 

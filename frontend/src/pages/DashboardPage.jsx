@@ -998,6 +998,9 @@ function CostForecastWorkbench({
   retrainState,
   canManage,
   serviceOptions,
+  selectedScenario,
+  onScenarioChange,
+  demoSeedState,
 }) {
   const { data, loading, error } = forecastState;
 
@@ -1085,6 +1088,16 @@ function CostForecastWorkbench({
 
       {data ? (
         <div className="metrics-summary-grid">
+          <div className="metric-pill-card highlight-metric">
+            <span>Next Month Expected Total</span>
+            <strong>${data.projected_next_month_total?.toFixed(2) ?? "0.00"}</strong>
+            <small>30-Day ML Forecast Prediction</small>
+          </div>
+          <div className="metric-pill-card">
+            <span>Current Month Projected Total</span>
+            <strong>${data.projected_current_month_total?.toFixed(2) ?? "0.00"}</strong>
+            <small>Actuals + Remaining Forecast</small>
+          </div>
           <div className="metric-pill-card">
             <span>ML Model MAE</span>
             <strong>${data.mae?.toFixed(2) ?? "0.00"}</strong>
@@ -1119,13 +1132,13 @@ function CostForecastWorkbench({
               <XAxis dataKey="date" tick={{ fill: "#777587", fontSize: 11 }} />
               <YAxis tick={{ fill: "#777587", fontSize: 11 }} />
               <Tooltip
-                formatter={(val, name) => [
+                formatter={(val, _name, item) => [
                   val !== null ? formatCurrency(Number(val)) : "-",
-                  name === "actual"
+                  item.dataKey === "actual"
                     ? "Historical Spend"
-                    : name === "forecast"
+                    : item.dataKey === "forecast"
                     ? "Predicted Forecast"
-                    : name === "upper_bound"
+                    : item.dataKey === "upper_bound"
                     ? "95% Upper Bound"
                     : "95% Lower Bound",
                 ]}
@@ -1295,6 +1308,8 @@ function OperationsPanel({
   setTeammateForm,
   handleTeammateCreate,
   isSimulatedWorkspace,
+  selectedScenario,
+  setSelectedScenario,
 }) {
   return (
     <article className="info-card full-span-card" id="operations">
@@ -1341,7 +1356,26 @@ function OperationsPanel({
             <button className="primary-button" type="button" onClick={handleManualSync} disabled={syncState.running}>
               {syncState.running ? "Running sync..." : "Run sync now"}
             </button>
-            <button className="secondary-button" type="button" onClick={handleDemoSeed} disabled={demoSeedState.running || demoClearState?.running}>
+            <select
+              style={{
+                padding: "8px 12px",
+                borderRadius: "8px",
+                border: "1px solid var(--border)",
+                background: "#ffffff",
+                fontSize: "0.85rem",
+                fontWeight: "600",
+                color: "var(--text-main)",
+              }}
+              value={selectedScenario}
+              onChange={(e) => setSelectedScenario(e.target.value)}
+              disabled={demoSeedState.running || demoClearState?.running}
+            >
+              <option value="organic">📈 Organic Growth Pattern</option>
+              <option value="volatile">⚡ High Volatility & Heavy Spikes</option>
+              <option value="escalating">🚀 Rapid Cost Escalation</option>
+              <option value="seasonal">🔄 Strict 7-Day Seasonal Cycles</option>
+            </select>
+            <button className="secondary-button" type="button" onClick={() => handleDemoSeed(selectedScenario)} disabled={demoSeedState.running || demoClearState?.running}>
               {demoSeedState.running ? "Loading demo..." : "Load demo data"}
             </button>
             <button className="secondary-button danger-tone" type="button" onClick={handleDemoClear} disabled={demoSeedState.running || demoClearState?.running}>
@@ -1570,6 +1604,7 @@ export default function DashboardPage() {
     downloading: "",
     error: "",
   });
+  const [selectedScenario, setSelectedScenario] = useState("organic");
   const [selectedForecastService, setSelectedForecastService] = useState("total");
   const [forecastHorizonDays, setForecastHorizonDays] = useState(30);
   const [forecastState, setForecastState] = useState({
@@ -1744,6 +1779,7 @@ export default function DashboardPage() {
     let cancelled = false;
     async function loadForecast() {
       setForecastState((current) => ({ ...current, loading: true, error: "" }));
+      setRetrainState({ running: false, message: "", error: "" });
       try {
         const response = await apiFetch(`/forecast/service?service_name=${selectedForecastService}&horizon_days=${forecastHorizonDays}`);
         const data = await response.json();
@@ -1910,7 +1946,8 @@ export default function DashboardPage() {
     }
   }
 
-  async function handleDemoSeed() {
+  async function handleDemoSeed(scenarioToUse) {
+    const scenario = typeof scenarioToUse === "string" ? scenarioToUse : selectedScenario;
     setDemoSeedState({
       running: true,
       message: "",
@@ -1919,7 +1956,7 @@ export default function DashboardPage() {
     });
 
     try {
-      const response = await apiFetch("/organization/demo-seed", { method: "POST" });
+      const response = await apiFetch(`/organization/demo-seed?scenario=${scenario}`, { method: "POST" });
       const data = await response.json();
 
       if (!response.ok) {
@@ -1932,17 +1969,9 @@ export default function DashboardPage() {
         error: "",
         summary: data.summary ?? null,
       });
-      setDemoClearState({
-        running: false,
-        message: "",
-        error: "",
-      });
-      setSyncState({
-        running: false,
-        message: "",
-        error: "",
-        summary: null,
-      });
+      setSelectedScenario(scenario);
+      setDemoClearState({ running: false, message: "", error: "" });
+      setSyncState({ running: false, message: "", error: "", summary: null });
       setRefreshKey((current) => current + 1);
     } catch (error) {
       setDemoSeedState({
@@ -2448,6 +2477,8 @@ export default function DashboardPage() {
                 setTeammateForm={setTeammateForm}
                 handleTeammateCreate={handleTeammateCreate}
                 isSimulatedWorkspace={isSimulatedWorkspace}
+                selectedScenario={selectedScenario}
+                setSelectedScenario={setSelectedScenario}
               />
             ) : null}
 
@@ -2475,7 +2506,7 @@ export default function DashboardPage() {
               canManage={auth.user?.role === "admin"}
             />
 
-            <ReportsWorkbench reportState={reportState} onDownload={handleReportDownload} />
+            <ReportsSection reportState={reportState} onDownload={handleReportDownload} />
 
             <CostForecastWorkbench
               forecastState={forecastState}
@@ -2487,6 +2518,9 @@ export default function DashboardPage() {
               retrainState={retrainState}
               canManage={auth.user?.role === "admin"}
               serviceOptions={budgetServiceOptions}
+              selectedScenario={selectedScenario}
+              onScenarioChange={handleDemoSeed}
+              demoSeedState={demoSeedState}
             />
 
             <article className="info-card full-span-card" id="executive-summary">

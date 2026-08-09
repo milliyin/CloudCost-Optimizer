@@ -516,6 +516,15 @@ p {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
 }
 
+.metric-pill-card.highlight-metric {
+  background: var(--primary-soft);
+  border: 1px solid rgba(79, 70, 229, 0.3);
+}
+
+.metric-pill-card.highlight-metric strong {
+  color: var(--primary-strong);
+}
+
 .metric-pill-card span {
   font-size: 0.75rem;
   color: var(--text-muted);

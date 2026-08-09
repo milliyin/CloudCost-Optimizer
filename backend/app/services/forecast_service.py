@@ -76,6 +76,21 @@ async def get_service_forecast(
                             }
                         )
 
+    # 1. Projected current month total (actual spend so far + forecast for rest of month)
+    projected_current_month_total = current_month_actual + sum(
+        f["amount"]
+        for f in result.forecast
+        if datetime.strptime(f["date"], "%Y-%m-%d").date().month == today.month
+    )
+
+    # 2. Next 30-day predicted total (sum of 30-day forecast horizon)
+    next_30d_expected_total = sum(
+        f["amount"] for f in result.forecast[:30]
+    )
+
+    # 3. Next monthly expected total (30-day projected spend)
+    projected_next_month_total = next_30d_expected_total
+
     return {
         "service": result.service,
         "model_name": result.model_name,
@@ -85,6 +100,9 @@ async def get_service_forecast(
         "baseline_rmse": result.baseline_rmse,
         "horizon_days": result.horizon_days,
         "data_points": result.data_points,
+        "projected_current_month_total": round(projected_current_month_total, 2),
+        "next_30d_expected_total": round(next_30d_expected_total, 2),
+        "projected_next_month_total": round(projected_next_month_total, 2),
         "historical": result.historical,
         "forecast": result.forecast,
         "proactive_warnings": proactive_warnings,

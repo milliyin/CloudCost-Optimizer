@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 
 from app.api.deps import DbSession, get_current_user, require_role
@@ -74,15 +74,18 @@ async def save_organization_aws_connection(
 async def seed_organization_demo_workspace(
     db: DbSession,
     current_user: Annotated[User, Depends(require_role(UserRole.ADMIN))],
+    scenario: str = Query(default="organic"),
 ) -> DemoSeedResponse:
-    summary = await seed_demo_workspace(db, current_user)
+    summary = await seed_demo_workspace(db, current_user, scenario=scenario)
+    scenario_label = {
+        "organic": "Organic Growth",
+        "volatile": "High Volatility & Spikes",
+        "escalating": "Rapid Cost Escalation",
+        "seasonal": "Strict 7-Day Seasonal Cycles",
+    }.get(scenario, scenario.capitalize())
+
     return DemoSeedResponse(
-        message=(
-            "Demo workspace loaded for this organization. "
-            "The saved AWS connection was cleared and the dashboard now uses simulated data."
-            if summary.aws_connection_removed
-            else "Demo workspace loaded for this organization with simulated data."
-        ),
+        message=f"Demo workspace loaded using '{scenario_label}' dataset pattern.",
         summary=DemoSeedSummaryResponse(
             cost_records_seeded=summary.cost_records_seeded,
             resources_seeded=summary.resources_seeded,

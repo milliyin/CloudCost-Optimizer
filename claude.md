@@ -844,6 +844,34 @@ Public registration provisions a new organization workspace. The creator of a ne
 - Manual test performed:
   - Unit test suite (`test_forecast.py`) passed cleanly; backend Python compilation passed with 0 syntax errors.
 
+### 2026-08-09 - Add Multi-Pattern Demo Dataset Generator for Interactive ML Testing
+- What changed:
+  - Updated `_build_cost_records()` in `backend/app/services/demo_seed.py` and `POST /organization/demo-seed` in `backend/app/api/organization.py` to support `scenario` selection (`organic`, `volatile`, `escalating`, `seasonal`).
+  - Implemented 4 mathematical cost pattern generators:
+    - 📈 **Organic Growth**: Baseline steady +20% growth + mild weekend dips.
+    - ⚡ **High Volatility**: Multi-fold random batch spikes & high variance (demonstrates expanding 95% confidence bounds).
+    - 🚀 **Rapid Cost Escalation**: Exponential cost growth ($e^{k\cdot t}$) simulating runaway spend (instantly triggers proactive budget warnings).
+    - 🔄 **Strict Seasonal Cycles**: Periodic 7-day sine wave (demonstrates near-perfect $0.10$ MAE with autoregressive lag features).
+  - Added interactive **ML Test Pattern** dropdown selector to `CostForecastWorkbench` and `OperationsPanel` in `frontend/src/pages/DashboardPage.jsx`.
+- Why:
+  - Allow evaluators to test and compare how the ML engine, error metrics (MAE/RMSE), confidence intervals, and proactive budget alerts adapt to different workload patterns in real time.
+- Files touched:
+  - `backend/app/services/demo_seed.py`, `backend/app/api/organization.py`, `frontend/src/pages/DashboardPage.jsx`, `claude.md`.
+- Manual test performed:
+  - Python compilation passed; scenario parameter routes verified.
+
+### 2026-08-09 - Add Next Month Expected Total Prediction Cards & Clean Up Forecast Header
+- What changed:
+  - Added `projected_next_month_total`, `projected_current_month_total`, and `next_30d_expected_total` calculations to `get_service_forecast()` in `backend/app/services/forecast_service.py`.
+  - Added **Next Month Expected Total** and **Current Month Projected Total** metric cards to `CostForecastWorkbench` in `frontend/src/pages/DashboardPage.jsx` with highlighted soft primary styling (`styles.css`).
+  - Removed `ML Test Pattern` dropdown selector from `CostForecastWorkbench` header controls bar while retaining the pattern selector in the `Operations` control panel.
+- Why:
+  - Provide immediate executive visibility into predicted total dollar spend for the upcoming 30-day/monthly period and keep the ML Cost Forecast section clean and focused.
+- Files touched:
+  - `backend/app/services/forecast_service.py`, `frontend/src/pages/DashboardPage.jsx`, `frontend/src/styles.css`, `claude.md`.
+- Manual test performed:
+  - Python compilation passed cleanly; metric cards rendering verified.
+
 ## 8. Manual Test Checklist Status
 
 - Stage 0: base Docker/frontend flow confirmed during local setup; AWS setup still being completed separately for Stage 2 readiness
