@@ -218,7 +218,7 @@ elif 15.0 <= avg_cpu <= 20.0:
 
 ### 4.4 Machine Learning Forecasting Engine
 
-The ML pipeline ([forecaster.py](file:///e:/2.code-on-fire/2.react/optiaws/backend/app/ml/forecaster.py)) implements regularized `Ridge` regression with dynamic 95% confidence interval bounds:
+The ML pipeline ([forecaster.py](file:///e:/2.code-on-fire/2.react/optiaws/backend/app/ml/forecaster.py)) implements regularized `Ridge` regression with dynamic statistical confidence bounds. In the current implementation, the model uses `Ridge(alpha=0.1)` and a guarded fallback path for extremely small real datasets so the system does not overstate forecast confidence when billing history is still sparse:
 
 $$\hat{y}_{t+h} \pm 1.96 \cdot s_e \cdot \sqrt{1 + \frac{h}{30}}$$
 
@@ -226,7 +226,7 @@ where $s_e$ is the model residual standard deviation and $h$ is the forecast hor
 
 ```python
 # Ridge Model Initialization & Iterative Horizon Predictor
-model = Ridge(alpha=1.0)
+model = Ridge(alpha=0.1)
 model.fit(X_train, y_train)
 
 # Iterative Multi-Step Forecast Loop
@@ -332,19 +332,31 @@ Future extensions for the platform include:
   "Version": "2012-10-17",
   "Statement": [
     {
+      "Sid": "CloudCostReadOnly",
       "Effect": "Allow",
       "Action": [
         "ce:GetCostAndUsage",
-        "ce:GetDimensionValues",
+        "ce:GetCostForecast",
         "cloudwatch:GetMetricData",
-        "cloudwatch:GetMetricStatistics",
         "ec2:DescribeInstances",
         "ec2:DescribeVolumes",
         "ec2:DescribeAddresses",
         "rds:DescribeDBInstances",
-        "s3:ListAllMyBuckets",
+        "elasticloadbalancing:DescribeLoadBalancers",
         "lambda:ListFunctions",
-        "elasticloadbalancing:DescribeLoadBalancers"
+        "s3:ListAllMyBuckets",
+        "s3:GetBucketLocation",
+        "dynamodb:ListTables",
+        "dynamodb:DescribeTable",
+        "sqs:ListQueues",
+        "sqs:GetQueueAttributes",
+        "sns:ListTopics",
+        "ecs:ListClusters",
+        "ecs:DescribeClusters",
+        "ecs:ListServices",
+        "ecs:DescribeServices",
+        "ecr:DescribeRepositories",
+        "apigateway:GET"
       ],
       "Resource": "*"
     }

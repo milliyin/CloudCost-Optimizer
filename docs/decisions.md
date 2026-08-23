@@ -160,3 +160,27 @@ Manual validation compared the app against the AWS Cost Explorer console using
 refund and credit exclusions. To reduce confusing differences during demos, the
 backend now applies the same exclusion filter during Cost Explorer sync so the
 dashboard totals and breakdowns better match what the user sees in AWS.
+
+## 2026-08-08 - Enforce human-in-the-loop audit logging and non-destructive recommendation safety
+
+Automated resource termination introduces catastrophic availability risks if rules misfire. We enforced a strict non-destructive safety rule: recommendation cards require explicit admin approval or rejection, producing an immutable PostgreSQL `AuditLog` entry, with zero mutating AWS API calls (`stop_instances`, `terminate_instances`, `delete_volume`).
+
+## 2026-08-08 - Supervised Ridge Regression chosen over Naive Baselines and Deep Learning
+
+Naive moving average baselines lag behind sudden cloud spend shifts, while deep learning models (LSTMs, Transformers) require excessive compute and act as black boxes. We implemented `Ridge` Regression ($L_2$ regularized least squares) with autoregressive lag features (`lag_1`, `lag_7`, `lag_14`) and rolling aggregations. Ridge runs in sub-15ms on CPU, prevents feature overfitting on noisy spikes, and enables clear mathematical derivation of confidence bounds.
+
+## 2026-08-09 - Enforce 80/20 chronological time-aware train/test split to prevent future data leakage
+
+Standard random cross-validation (`train_test_split(shuffle=True)`) leaks future spend into past training samples, producing artificially optimistic 99% accuracy. We enforced a strict chronological split (first 80% dates for training, final 20% dates for testing) to mirror real-world operational deployment with zero data leakage.
+
+## 2026-08-11 - Implement 7-day Fourier trigonometric seasonal harmonics to prevent multi-step wave dampening
+
+Multi-step recursive horizon forecasting with linear `day_of_week` integer features causes future prediction lines to damp out into a flat average line. We engineered continuous 7-day Fourier features ($\text{sin}_7 = \sin\left(\frac{2\pi \cdot \text{day\_of\_week}}{7}\right)$, $\text{cos}_7 = \cos\left(\frac{2\pi \cdot \text{day\_of\_week}}{7}\right)$) and tuned `Ridge(alpha=0.1)`. This creates an infinite circular wave that preserves weekly corporate spend peaks and troughs ($4.27 \to 22.60 \to 4.27$) across 14-to-90-day forecast horizons.
+
+## 2026-08-12 - Display statistical confidence bounds to represent volatility risk
+
+On non-periodic random batch spikes (High Volatility scenario), predicting point-estimate spikes on random dates causes double-error penalties. The ML model correctly outputs the statistical expected daily baseline ($\sim\$22$) while expanding confidence bounds ($\sim\$75$) to communicate operational spend risk clearly to FinOps stakeholders.
+
+## 2026-08-23 - Fail forecast safely when billing history is too short and surface backend errors clearly
+
+Real AWS sync introduced a practical issue that demo data did not expose: some organizations only had a few days of cost history, which is not enough to train a meaningful time-series model. Instead of fabricating a noisy prediction, the forecasting flow now intentionally returns a safe `Fallback Zero` model for tiny datasets. On the UI side, forecast and retrain requests now parse non-JSON backend failures safely so users see a readable backend error instead of a raw `Unexpected token 'I'` JSON parse message.

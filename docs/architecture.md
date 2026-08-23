@@ -1,22 +1,46 @@
 # Architecture Overview
 
-Current architecture:
+## Final Production Architecture (Stages 0–6 Complete)
 
-- `frontend/` runs a Vite + React application with route-based auth screens, persistent session storage, organization AWS-connection management, a standalone in-app AWS onboarding section with embedded IAM policy JSON, teammate creation, live dashboard charts/tables, stored findings views with filters and resolved history, scroll-aware section navigation, and admin sync controls.
-- `backend/` runs a FastAPI app with health, auth, refresh, organization management, dashboard, findings, role-check, demo seed, teammate creation, and manual sync endpoints.
-- `postgres` stores organizations, users, AWS connection records, cost records, cloud resources, metric samples, and findings.
-- An APScheduler background job is wired into FastAPI lifespan to trigger periodic syncs.
+CloudCost Optimizer is a multitenant cloud financial management and machine learning forecasting platform.
 
-Current data flow:
+### Component Layers
 
-- Admin saves AWS credentials per organization through the dashboard.
-- A manual or scheduled sync reads AWS Cost Explorer, resource inventory services, and CloudWatch metrics.
-- Synced cost rows are normalized and upserted into PostgreSQL so repeated syncs stay idempotent.
-- Findings are recalculated immediately after sync from the latest organization-scoped resources and metric samples.
-- Dashboard summary cards, trend charts, service breakdowns, region breakdowns, inventory, and findings all read from the stored org-scoped PostgreSQL data instead of querying AWS directly from the browser.
+1. **Frontend (`frontend/`)**:
+   - Built with React 18, Vite, and Recharts.
+   - Routes for authentication, persistent JWT session handling, Organization tenant management, and live AWS onboarding with embedded IAM policy JSON.
+   - Interactive Dashboard: KPI cards, service spend charts, spend by region, inventory tables, topbar date range presets (`30D`, `90D`, `6M`, `1Y`).
+   - Waste Findings Workbench: Filterable finding cards, CPU telemetry evidence sidepanel, resolved finding history.
+   - Human Recommendation Workflow: Approve / Reject action cards backed by non-destructive safety rules and audit logging.
+   - Machine Learning Cost Forecast Workbench: Ridge ML model controls, horizon selectors (`14D`, `30D`, `60D`, `90D`), model metric cards (ML MAE vs Baseline MAE, RMSE), statistical confidence bounds visualization, retrain controls, and readable in-app backend error handling.
+   - Operations Panel: Multi-pattern dataset pattern selector (*Organic Growth, High Volatility, Rapid Escalation, Strict Seasonal*).
+   - Export Engine: Executive PDF and CSV report downloads.
 
-Planned direction:
+2. **Backend (`backend/`)**:
+   - Built with Python 3.10+ and FastAPI.
+   - Async endpoints for authentication, token refresh, organization management, dashboard summary, findings, recommendations, budgets, reports, and forecasting.
+   - Security \& Encryption: Fernet symmetric encryption for stored AWS keys, RBAC role validation dependencies (`require_role(UserRole.ADMIN)`).
+   - Ingestion Pipeline: Boto3 AWS Cost Explorer client (`ce:GetCostAndUsage`), resource inventory collectors (`ec2`, `rds`, `s3`, `lambda`, `elb`, `ecs`, `dynamodb`), and CloudWatch telemetry collectors (`cloudwatch:GetMetricData`).
+   - Waste Detection Rules Engine: Sustained CPU telemetry band analysis ($< 5.0\%$ idle compute, $15\%-20\%$ underutilized compute), orphan volume detection ($state = \text{available}$).
+   - Machine Learning Forecasting Engine (`app/ml/forecaster.py` \& `app/ml/feature_engineering.py`): Continuous daily reindexing, 7-day Fourier seasonal harmonics ($\sin_7, \cos_7$), autoregressive lag features (`lag_1`, `lag_7`, `lag_14`), rolling aggregations ($\mu_{7d}, \sigma_{7d}$), regularized `Ridge(alpha=0.1)` regression model, 80/20 chronological time-aware train/test split validation, statistical confidence bounds calculations, proactive budget breach warnings, and a guarded low-history `Fallback Zero` path when the cost series is still too sparse to train a trustworthy model.
 
-- Frontend will expand into findings, recommendation, budget, and reporting workflows.
-- Backend will provide auth, sync orchestration, evidence-backed findings, reporting, and forecasting APIs.
-- PostgreSQL will expand to store tenant-scoped findings, recommendations, and audit logs alongside synced AWS data.
+3. **Database (`postgres`)**:
+   - PostgreSQL 18 relational database managed via SQLAlchemy 2.0 ORM and Alembic migrations.
+   - Tables: `organizations`, `users`, `aws_connections`, `cost_records`, `cloud_resources`, `metric_samples`, `findings`, `recommendations`, `budgets`, `alerts`, and `audit_logs`.
+   - All query paths enforce tenant boundary isolation (`WHERE organization_id = tenant_id`).
+
+4. **Containerization (`docker-compose.yml`)**:
+   - Docker Compose orchestrating `frontend`, `backend`, and `postgres` containers with live host-to-container volume mounts (`./backend:/app` and `./frontend:/app`).
+
+---
+
+## End-to-End Data Flow
+
+1. Admin saves AWS credentials or seeds workspace with selected demo pattern.
+2. Ingestion job collects Cost Explorer billing data, resource inventory, and CloudWatch performance telemetry.
+3. Billing rows and resources are upserted into PostgreSQL using natural unique key constraints to ensure idempotency.
+4. Waste detection rules evaluate telemetry metrics and generate evidence records.
+5. Recommendation cards are generated for review. Approvals record immutable entries in PostgreSQL `AuditLog` (enforcing zero mutating AWS API calls).
+6. Machine learning forecasting engine trains a regularized `Ridge` time-series model on historical cost records, evaluates accuracy against moving average baselines, and returns multi-step horizon predictions with statistical confidence bounds.
+7. If the synced billing history is too short, the forecast API returns a safe fallback response instead of pretending a low-sample prediction is meaningful.
+8. Proactive budget engines check cumulative predicted spend against thresholds and emit alert warnings before month end.

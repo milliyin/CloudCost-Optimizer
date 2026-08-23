@@ -20,10 +20,11 @@ resources.
 ## 2. Current Status
 
 - Current stage: Stage 6 - Machine Learning Cost Forecasting (PASSED on 2026-08-09)
-- Last completed milestone: 2026-08-09 - Stage 6 ML Cost Forecasting implementation & test suite sign-off
+- Last completed milestone: 2026-08-23 - ML forecast real-data stabilization and docs refresh
 - Known broken / in-progress things right now:
-  - Stage 6 ML Cost Forecasting complete: time-aware train/test split (no data leakage), Ridge autoregressive model, 95% confidence interval bounds, multi-step horizon forecasting, proactive budget breach warning integration, retrain API, unit test suite verified.
-  - All 6 Stages of the master build prompt are fully implemented and verified!
+  - Stage 6 ML Cost Forecasting complete: time-aware train/test split (no data leakage), Ridge autoregressive model, statistical confidence bounds, multi-step horizon forecasting, proactive budget breach warning integration, retrain API, unit test suite verified.
+  - Real AWS accounts with very short billing history intentionally show `Fallback Zero` until enough cost records accumulate for meaningful training.
+  - All 6 stages of the master build prompt are fully implemented and verified.
 
 ## 3. Architecture Summary
 
