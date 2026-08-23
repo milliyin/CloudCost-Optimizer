@@ -70,6 +70,21 @@ function formatFindingTypeLabel(value) {
   return findingTitleMap[value] ?? value.replaceAll("_", " ");
 }
 
+async function readApiPayload(response) {
+  const rawText = await response.text();
+  if (!rawText) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(rawText);
+  } catch {
+    return {
+      detail: rawText,
+    };
+  }
+}
+
 function formatTimeAgo(value) {
   if (!value) {
     return "now";
@@ -1032,7 +1047,7 @@ function CostForecastWorkbench({
       <div className="chart-header">
         <div className="chart-title">
           <h2>Machine Learning Cost Forecast</h2>
-          <p>Supervised regression time-series forecasting with time-aware split validation and 95% confidence interval bounds.</p>
+          <p>Supervised regression time-series forecasting with time-aware split validation and statistical confidence bounds.</p>
         </div>
         <div className="chip-row">
           <span className="chip info">{data?.model_name || "Ridge Autoregressive"}</span>
@@ -1139,8 +1154,8 @@ function CostForecastWorkbench({
                     : item.dataKey === "forecast"
                     ? "Predicted Forecast"
                     : item.dataKey === "upper_bound"
-                    ? "95% Upper Bound"
-                    : "95% Lower Bound",
+                    ? "Upper Confidence Bound"
+                    : "Lower Confidence Bound",
                 ]}
               />
               <Legend />
@@ -1170,7 +1185,7 @@ function CostForecastWorkbench({
                 strokeWidth={1}
                 strokeDasharray="2 2"
                 dot={false}
-                name="95% Upper Bound"
+                name="Upper Confidence Bound"
                 connectNulls
               />
               <Line
@@ -1180,7 +1195,7 @@ function CostForecastWorkbench({
                 strokeWidth={1}
                 strokeDasharray="2 2"
                 dot={false}
-                name="95% Lower Bound"
+                name="Lower Confidence Bound"
                 connectNulls
               />
             </LineChart>
@@ -1782,7 +1797,7 @@ export default function DashboardPage() {
       setRetrainState({ running: false, message: "", error: "" });
       try {
         const response = await apiFetch(`/forecast/service?service_name=${selectedForecastService}&horizon_days=${forecastHorizonDays}`);
-        const data = await response.json();
+        const data = await readApiPayload(response);
         if (!cancelled) {
           if (response.ok) {
             setForecastState({ loading: false, error: "", data });
@@ -2041,7 +2056,7 @@ export default function DashboardPage() {
     setRetrainState({ running: true, message: "", error: "" });
     try {
       const response = await apiFetch("/forecast/retrain", { method: "POST" });
-      const data = await response.json();
+      const data = await readApiPayload(response);
       if (!response.ok) {
         throw new Error(extractApiError(data, "Failed to retrain models"));
       }

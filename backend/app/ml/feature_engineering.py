@@ -55,10 +55,19 @@ def build_forecasting_features(df: pd.DataFrame) -> pd.DataFrame:
     data["month"] = data["date"].dt.month
     data["is_weekend"] = data["day_of_week"].isin([5, 6]).astype(int)
 
+    # Multi-frequency Fourier seasonal harmonics (7D weekly, 14D biweekly, 30D monthly)
+    data["sin_7"] = np.sin(2 * np.pi * data["day_of_week"] / 7.0)
+    data["cos_7"] = np.cos(2 * np.pi * data["day_of_week"] / 7.0)
+    data["sin_14"] = np.sin(2 * np.pi * (data["date"].dt.dayofyear % 14) / 14.0)
+    data["cos_14"] = np.cos(2 * np.pi * (data["date"].dt.dayofyear % 14) / 14.0)
+    data["sin_30"] = np.sin(2 * np.pi * data["day_of_month"] / 30.0)
+    data["cos_30"] = np.cos(2 * np.pi * data["day_of_month"] / 30.0)
+
     # Autoregressive lag features (shift by 1+ to prevent future data leakage)
     data["lag_1"] = data["amount"].shift(1)
     data["lag_7"] = data["amount"].shift(7)
     data["lag_14"] = data["amount"].shift(14)
+    data["lag_30"] = data["amount"].shift(30)
 
     # Rolling window features
     data["rolling_7d_mean"] = data["amount"].shift(1).rolling(window=7, min_periods=1).mean()
@@ -69,6 +78,7 @@ def build_forecasting_features(df: pd.DataFrame) -> pd.DataFrame:
     data["lag_1"] = data["lag_1"].bfill().fillna(0.0)
     data["lag_7"] = data["lag_7"].bfill().fillna(0.0)
     data["lag_14"] = data["lag_14"].bfill().fillna(0.0)
+    data["lag_30"] = data["lag_30"].bfill().fillna(0.0)
     data["rolling_7d_mean"] = data["rolling_7d_mean"].bfill().fillna(0.0)
     data["rolling_7d_std"] = data["rolling_7d_std"].fillna(0.0)
     data["rolling_14d_mean"] = data["rolling_14d_mean"].bfill().fillna(0.0)

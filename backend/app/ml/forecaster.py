@@ -18,6 +18,8 @@ FEATURE_COLUMNS = [
     "day_of_month",
     "month",
     "is_weekend",
+    "sin_7",
+    "cos_7",
     "lag_1",
     "lag_7",
     "lag_14",
@@ -39,6 +41,7 @@ class ForecastResult:
     baseline_rmse: float
     horizon_days: int
     data_points: int
+    confidence_level: float
 
 
 def _calculate_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> tuple[float, float]:
@@ -49,10 +52,20 @@ def _calculate_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> tuple[float, f
     return round(mae, 4), round(rmse, 4)
 
 
+CONFIDENCE_Z_SCORES = {
+    0.80: 1.282,
+    0.85: 1.440,
+    0.90: 1.645,
+    0.95: 1.960,
+    0.99: 2.576,
+}
+
+
 def train_and_forecast_service(
     cost_records: list[Any],
     service_filter: str | None = None,
     horizon_days: int = 30,
+    confidence_level: float = 0.95,
 ) -> ForecastResult:
     """
     Trains baseline and ML forecasting models on historical cost records using a strict
@@ -86,6 +99,7 @@ def train_and_forecast_service(
             baseline_rmse=0.0,
             horizon_days=horizon_days,
             data_points=len(raw_df),
+            confidence_level=confidence_level,
         )
 
     df = build_forecasting_features(raw_df)
@@ -106,7 +120,7 @@ def train_and_forecast_service(
     baseline_model.fit(train_df[["day_of_week", "is_weekend"]], y_train)
 
     # Advanced ML Model: Ridge Regression with lag & rolling window features
-    ml_model = Ridge(alpha=1.0)
+    ml_model = Ridge(alpha=0.1)
     ml_model.fit(X_train, y_train)
 
     # Evaluate on Test Set
@@ -126,6 +140,7 @@ def train_and_forecast_service(
     train_preds = ml_model.predict(X_train)
     residuals = y_train - train_preds
     std_residual = float(np.std(residuals)) if len(residuals) > 1 else 0.1
+    z_score = CONFIDENCE_Z_SCORES.get(confidence_level, 1.96)
 
     # --- MULTI-STEP HORIZON FORECASTING ---
     forecast_df = df.copy()
@@ -140,6 +155,8 @@ def train_and_forecast_service(
         day_of_month = target_date.day
         month = target_date.month
         is_weekend = 1 if day_of_week in [5, 6] else 0
+        sin_7 = math.sin(2 * math.pi * day_of_week / 7.0)
+        cos_7 = math.cos(2 * math.pi * day_of_week / 7.0)
 
         recent_amounts = forecast_df["amount"].values
         lag_1 = float(recent_amounts[-1])
@@ -157,6 +174,8 @@ def train_and_forecast_service(
                     "day_of_month": day_of_month,
                     "month": month,
                     "is_weekend": is_weekend,
+                    "sin_7": sin_7,
+                    "cos_7": cos_7,
                     "lag_1": lag_1,
                     "lag_7": lag_7,
                     "lag_14": lag_14,
@@ -171,7 +190,7 @@ def train_and_forecast_service(
 
         # Confidence interval widens slightly with forecast step horizon
         horizon_penalty = math.sqrt(1.0 + (step / 30.0))
-        margin = 1.96 * std_residual * horizon_penalty
+        margin = z_score * std_residual * horizon_penalty
 
         lower_bound = max(0.0, pred_amount - margin)
         upper_bound = pred_amount + margin
@@ -208,4 +227,5 @@ def train_and_forecast_service(
         baseline_rmse=baseline_rmse,
         horizon_days=horizon_days,
         data_points=n,
+        confidence_level=confidence_level,
     )
