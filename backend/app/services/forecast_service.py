@@ -100,6 +100,7 @@ async def get_service_forecast(
         "baseline_rmse": result.baseline_rmse,
         "horizon_days": result.horizon_days,
         "data_points": result.data_points,
+        "limited_history_note": result.limited_history_note,
         "projected_current_month_total": round(projected_current_month_total, 2),
         "next_30d_expected_total": round(next_30d_expected_total, 2),
         "projected_next_month_total": round(projected_next_month_total, 2),

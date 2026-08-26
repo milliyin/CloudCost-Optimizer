@@ -1101,6 +1101,10 @@ function CostForecastWorkbench({
         </div>
       ) : null}
 
+      {data?.limited_history_note ? (
+        <p className="form-warning">{data.limited_history_note}</p>
+      ) : null}
+
       {data ? (
         <div className="metrics-summary-grid">
           <div className="metric-pill-card highlight-metric">

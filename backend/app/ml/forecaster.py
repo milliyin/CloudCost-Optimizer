@@ -42,6 +42,7 @@ class ForecastResult:
     horizon_days: int
     data_points: int
     confidence_level: float
+    limited_history_note: str | None = None
 
 
 def _calculate_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> tuple[float, float]:
@@ -61,6 +62,10 @@ CONFIDENCE_Z_SCORES = {
 }
 
 
+def should_prefer_baseline(data_points: int, baseline_mae: float, ml_mae: float) -> bool:
+    return data_points < 14 and baseline_mae < ml_mae
+
+
 def train_and_forecast_service(
     cost_records: list[Any],
     service_filter: str | None = None,
@@ -72,10 +77,11 @@ def train_and_forecast_service(
     chronological (time-aware) train/test split to avoid data leakage.
     Iteratively predicts future daily costs with confidence bounds.
     """
+    minimum_training_points = 3
     service_key = service_filter or "total"
     raw_df = prepare_time_series_dataframe(cost_records, service_filter=service_filter)
 
-    if raw_df.empty or len(raw_df) < 7:
+    if raw_df.empty or len(raw_df) < minimum_training_points:
         # Fallback for empty or tiny datasets
         today = date.today()
         historical = [{"date": today.isoformat(), "amount": 0.0}]
@@ -100,6 +106,7 @@ def train_and_forecast_service(
             horizon_days=horizon_days,
             data_points=len(raw_df),
             confidence_level=confidence_level,
+            limited_history_note="Forecast is based on limited billing history.",
         )
 
     df = build_forecasting_features(raw_df)
@@ -136,9 +143,16 @@ def train_and_forecast_service(
     else:
         baseline_mae = baseline_rmse = ml_mae = ml_rmse = 0.05
 
+    prefer_baseline = should_prefer_baseline(len(raw_df), baseline_mae, ml_mae)
+
     # Compute Residual Standard Deviation for prediction error bounds
-    train_preds = ml_model.predict(X_train)
-    residuals = y_train - train_preds
+    baseline_train_preds = baseline_model.predict(train_df[["day_of_week", "is_weekend"]])
+    ml_train_preds = ml_model.predict(X_train)
+    residuals = (
+        y_train - baseline_train_preds
+        if prefer_baseline
+        else y_train - ml_train_preds
+    )
     std_residual = float(np.std(residuals)) if len(residuals) > 1 else 0.1
     z_score = CONFIDENCE_Z_SCORES.get(confidence_level, 1.96)
 
@@ -186,7 +200,17 @@ def train_and_forecast_service(
             ]
         )
 
-        pred_amount = max(0.0, float(ml_model.predict(step_features[FEATURE_COLUMNS])[0]))
+        if prefer_baseline:
+            pred_amount = max(
+                0.0,
+                float(
+                    baseline_model.predict(
+                        step_features[["day_of_week", "is_weekend"]]
+                    )[0]
+                ),
+            )
+        else:
+            pred_amount = max(0.0, float(ml_model.predict(step_features[FEATURE_COLUMNS])[0]))
 
         # Confidence interval widens slightly with forecast step horizon
         horizon_penalty = math.sqrt(1.0 + (step / 30.0))
@@ -220,7 +244,13 @@ def train_and_forecast_service(
         service=service_key,
         historical=historical,
         forecast=future_points,
-        model_name="Ridge Autoregressive (Time-Aware Split)",
+        model_name=(
+            "Naive Baseline (Low-History)"
+            if prefer_baseline
+            else "Ridge Autoregressive (Low-History)"
+            if len(raw_df) < 14
+            else "Ridge Autoregressive (Time-Aware Split)"
+        ),
         mae=ml_mae,
         rmse=ml_rmse,
         baseline_mae=baseline_mae,
@@ -228,4 +258,9 @@ def train_and_forecast_service(
         horizon_days=horizon_days,
         data_points=n,
         confidence_level=confidence_level,
+        limited_history_note=(
+            "Forecast is based on limited billing history."
+            if len(raw_df) < 14
+            else None
+        ),
     )
